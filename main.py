@@ -41,6 +41,7 @@ def main(data_path="/content/tiny-imagenet-200",
          learning_rate=0.1,
          inspect_data=False,
          checkpoints_dir="checkpoints",
+         resume_training=False
          ):
     """
     Main function to run the complete training pipeline
@@ -123,7 +124,7 @@ def main(data_path="/content/tiny-imagenet-200",
     print(f"  - Total steps: {steps_per_epoch * num_epochs}")
     
     # ====== STEP 6: Training Loop ======
-    print(f"\n[STEP 6/6] Starting training for {num_epochs} epoch(s)...")
+    print(f"\n[STEP 6/6] Starting training...")
     print("="*70)
     
     # Tracking metrics
@@ -132,8 +133,20 @@ def main(data_path="/content/tiny-imagenet-200",
     test_losses = []
     test_acc = []
     best_loss = float('inf')
-    
-    for epoch in range(1, num_epochs + 1):
+    best_weights_file = os.path.join(checkpoints_dir, 'best.pth')
+
+    if resume_training and os.path.exists(best_weights_file):
+        checkpoint = torch.load(best_weights_file, weights_only=True)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch']
+        best_loss = checkpoint['best_val_loss']
+        print(f"\nFound previous checkpoint. Resuming training from {start_epoch} epoch(s)...")
+    else:
+        start_epoch = 1
+
+
+    for epoch in range(start_epoch, num_epochs + 1):
         print(f"\n{'='*70}")
         print(f"📊 EPOCH {epoch}/{num_epochs}")
         print(f"{'='*70}")
@@ -170,7 +183,7 @@ def main(data_path="/content/tiny-imagenet-200",
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val_loss': best_loss,
                 # Add any other relevant information like hyperparameters
-            }, os.path.join(checkpoints_dir, 'best.pth'))
+            }, best_weights_file)
             print(f"Validation loss improved to {best_loss:.4f}. Saving model weights.")
 
 
