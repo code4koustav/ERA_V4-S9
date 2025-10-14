@@ -164,7 +164,13 @@ def main(data_path="/content/tiny-imagenet-200",
         # Save best model if validation loss improved. Also save every x epochs?
         if test_losses[-1] < best_loss:
             best_loss = test_losses[-1]
-            torch.save(model.state_dict(), os.path.join(checkpoints_dir, 'best.pth'))
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_val_loss': best_loss,
+                # Add any other relevant information like hyperparameters
+            }, os.path.join(checkpoints_dir, 'best.pth'))
             print(f"Validation loss improved to {best_loss:.4f}. Saving model weights.")
 
 
