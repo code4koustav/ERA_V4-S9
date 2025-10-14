@@ -2,31 +2,38 @@
 
 ## Project Plan
 
-For testing the pipeline download the Tine Imagenet-200 data
+For testing the pipeline download the Tiny ImageNet-200 data
 
-1. ✅ Download data manually and prepare the data loader function in py file
-2. ⏳ Create data augmentation function in a py file
+1. ✅ Download data manually and prepare the data loader function in a py file
+2. ✅ Create data augmentation function in a py file
 3. ✅ Develop the model architecture in a py file
-4. ⏳ Develop the train and test function along with the suitable LR strategy in a py file
-5. ⏳ Create a Main.py file where will be calling the above 4 functions and will test in colab for 1/2 epoch just to make sure our code is running 
-6. ⏳ Push our all code to github
+4. ✅ Develop the train and test function along with a suitable LR strategy in a py file
+5. ✅ Create a `main.py` to orchestrate the pipeline and test in Colab for 1–2 epochs
+6. ⏳ Push all code to GitHub
 
 ## Project Files Description
 
 ### `data_loader.py`
-Contains the data loading functionality for ImageNet dataset:
-- **`reorganize_val_folder()`**: Automatically reorganizes the validation folder structure to match PyTorch's ImageFolder format
-- **`load_imagenet_dataset()`**: Loads train and validation datasets with basic tensor conversion
-- **`generate_train_val_loader()`**: Creates DataLoader objects with proper configuration for GPU/CPU usage
-- Supports automatic validation folder reorganization and GPU acceleration
+ImageNet/Tiny ImageNet data loading built around Albumentations:
+- **`reorganize_val_folder(val_dir)`**: Converts Tiny ImageNet `val` split to `ImageFolder` layout (idempotent)
+- **`load_imagenet_dataset(data_path)`**: Returns Albumentations-backed train/val datasets
+- **`generate_train_val_loader(data_path, batch_size, train_transform, test_transform)`**: Builds train/val `DataLoader`s with CUDA-friendly settings (workers, pin memory)
+- Integrates with transforms from `data_augmentation.py`
+
+### `data_augmentation.py`
+Albumentations-based augmentation and dataset wrapper:
+- **`get_train_transform()`**: RandomResizedCrop(224), flips, color jitter/HSV, grayscale (p=0.2), GaussianBlur, CoarseDropout, Normalize, `ToTensorV2`
+- **`get_test_transform()`**: Resize(256) → CenterCrop(224), Normalize, `ToTensorV2`
+- **`AlbumentationsImageDataset`**: Wraps `torchvision.datasets.ImageFolder` to apply Albumentations transforms
 
 ### `utils.py`
-Utility functions for dataset inspection and visualization:
-- **`InspectImage` class**: Provides comprehensive dataset analysis capabilities
-- **`load_wnid_classnames()`**: Maps WordNet IDs to human-readable class names
-- **`inspect_loader()`**: Prints detailed statistics about the dataset (total images, classes, image sizes)
-- **`show_images_per_class()`**: Visualizes sample images from each class with readable labels
-- Essential for understanding dataset structure and debugging
+Utilities for dataset inspection and visualization:
+- **`InspectImage` class** (use with `ImageFolder` or `AlbumentationsImageDataset`):
+  - `load_wnid_classnames(words_file)`: Map WNIDs → class names from `words.txt`
+  - `inspect_loader(loader_name)`: Dataset stats (counts, classes, shapes)
+  - `show_images_per_class(num_classes, images_per_class, loader_name)`: Grid of samples
+  - `show_augmented_images(transform, num_images, samples_per_image)`: Visualize original vs augmented images
+  - Supports de-normalization preview for readability
 
 ### `model.py`
 ResNet50 implementation with adaptive configuration for both full ImageNet and Tiny ImageNet:
@@ -46,7 +53,7 @@ ResNet50 implementation with adaptive configuration for both full ImageNet and T
 Training and testing loops:
 - **`train_loop()`**: Single epoch training with progress tracking
 - **`test_loop()`**: Model evaluation on validation set
-- Uses NLL loss and tracks accuracy metrics
+- Uses NLL loss and tracks accuracy metrics; `main.py` drives OneCycleLR scheduling
 
 ### `Notebook.ipynb`
 Jupyter notebook containing:
@@ -174,7 +181,7 @@ train_loader, val_loader = generate_train_val_loader(data_path, batch_size)
 # Create model
 model = ResNet50(num_classes=200, use_maxpool=False).to(device)
 
-# Setup optimizer
+# Setup optimizer (example)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training tracking
@@ -231,7 +238,19 @@ with torch.no_grad():
 print(f"Predicted class: {predicted_class}")
 ```
 
-### 4. Save and Load Model
+### 4. Visualize Augmentations (Albumentations)
+
+```python
+from utils import InspectImage
+from data_augmentation import get_train_transform
+from torchvision import datasets
+
+dataset = datasets.ImageFolder("./tiny-imagenet-200/train")
+inspector = InspectImage(dataset, normalize=True)
+inspector.show_augmented_images(transform=get_train_transform(), num_images=3, samples_per_image=3)
+```
+
+### 5. Save and Load Model
 
 ```python
 import torch
@@ -256,3 +275,20 @@ model.eval()
 | `in_channels` | 3 (RGB) | 3 (RGB) |
 | Input Size | 224×224 | 64×64 |
 | Total Params | 25.5M | 23.9M |
+
+## End-to-end Training via `main.py`
+
+Run the complete Tiny ImageNet training pipeline with OneCycleLR:
+
+```python
+from main import main
+
+model, train_losses, train_acc, test_losses, test_acc = main(
+    data_path="/content/tiny-imagenet-200",   # or local path
+    zip_path="/content/tiny-imagenet.zip",    # optional: auto-extracts if needed
+    batch_size=128,
+    num_epochs=2,
+    learning_rate=0.1,
+    inspect_data=False
+)
+```
