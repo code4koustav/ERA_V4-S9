@@ -2,10 +2,10 @@ import os
 import zipfile
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import OneCycleLR
+
 from data_loader import generate_train_val_loader
 from model import ResNet50
-from train import train_loop, test_loop
+from train import train_loop, test_loop, get_lr_scheduler
 from utils import InspectImage
 
 
@@ -106,27 +106,15 @@ def main(data_path="/content/tiny-imagenet-200",
                          lr=learning_rate, 
                          momentum=0.9, 
                          weight_decay=5e-4)
-    
+
     # Learning Rate Strategy: OneCycleLR
     steps_per_epoch = len(train_loader)
-    total_steps = steps_per_epoch * num_epochs
-    
-    scheduler = OneCycleLR(
-        optimizer,
-        max_lr=learning_rate,
-        total_steps=total_steps,
-        epochs=num_epochs,
-        steps_per_epoch=steps_per_epoch,
-        pct_start=0.3,  # 30% of training for warmup
-        anneal_strategy='cos',
-        div_factor=10.0,  # initial_lr = max_lr/10
-        final_div_factor=100.0  # min_lr = max_lr/100
-    )
+    scheduler = get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate)
     
     print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay=5e-4)")
     print(f"✓ LR Scheduler: OneCycleLR")
     print(f"  - Max LR: {learning_rate}")
-    print(f"  - Total steps: {total_steps}")
+    print(f"  - Total steps: {steps_per_epoch * num_epochs}")
     
     # ====== STEP 6: Training Loop ======
     print(f"\n[STEP 6/6] Starting training for {num_epochs} epoch(s)...")

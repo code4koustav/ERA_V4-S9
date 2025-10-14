@@ -1,6 +1,28 @@
 import torch
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import OneCycleLR
 from tqdm import tqdm
+
+
+def get_sgd_optimizer():
+    pass
+
+def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
+
+    total_steps = steps_per_epoch * num_epochs
+
+    scheduler = OneCycleLR(
+        optimizer,
+        max_lr=learning_rate,
+        total_steps=total_steps,
+        epochs=num_epochs,
+        steps_per_epoch=steps_per_epoch,
+        pct_start=0.3,  # 30% of training for warmup
+        anneal_strategy='cos',
+        div_factor=10.0,  # initial_lr = max_lr/10
+        final_div_factor=100.0  # min_lr = max_lr/100
+    )
+    return scheduler
 
 
 def train_loop(model, device, train_loader, optimizer, train_losses, train_acc):
