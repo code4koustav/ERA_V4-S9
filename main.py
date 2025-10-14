@@ -39,7 +39,9 @@ def main(data_path="/content/tiny-imagenet-200",
          batch_size=128, 
          num_epochs=2, 
          learning_rate=0.1,
-         inspect_data=False):
+         inspect_data=False,
+         checkpoints_dir="checkpoints",
+         ):
     """
     Main function to run the complete training pipeline
     
@@ -65,7 +67,11 @@ def main(data_path="/content/tiny-imagenet-200",
             return
     else:
         print(f"✓ Dataset found at: {data_path}")
-    
+
+    # Create output folders if needed
+    if not os.path.exists(checkpoints_dir):
+        os.makedirs(checkpoints_dir, exist_ok=True)
+
     # ====== STEP 2: Load Data ======
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
     print(f"  - Batch size: {batch_size}")
@@ -125,6 +131,7 @@ def main(data_path="/content/tiny-imagenet-200",
     train_acc = []
     test_losses = []
     test_acc = []
+    best_loss = float('inf')
     
     for epoch in range(1, num_epochs + 1):
         print(f"\n{'='*70}")
@@ -136,7 +143,7 @@ def main(data_path="/content/tiny-imagenet-200",
         train_losses, train_acc = train_loop(
             model, device, train_loader, optimizer, train_losses, train_acc
         )
-        
+
         # Step the scheduler after each batch (OneCycleLR steps per batch)
         scheduler.step()
         
@@ -153,7 +160,14 @@ def main(data_path="/content/tiny-imagenet-200",
         print(f"  - Val Loss: {test_losses[-1]:.4f}")
         print(f"  - Val Acc: {test_acc[-1]:.2f}%")
         print(f"  - Current LR: {optimizer.param_groups[0]['lr']:.6f}")
-    
+
+        # Save best model if validation loss improved. Also save every x epochs?
+        if test_losses[-1] < best_loss:
+            best_loss = test_losses[-1]
+            torch.save(model.state_dict(), os.path.join(checkpoints_dir, 'best.pth'))
+            print(f"Validation loss improved to {best_loss:.4f}. Saving model weights.")
+
+
     # ====== Final Summary ======
     print("\n" + "="*70)
     print("✅ Training Complete!")
@@ -189,5 +203,6 @@ if __name__ == "__main__":
         batch_size=128,  # Increase if you have enough GPU memory
         num_epochs=2,    # Test with 1-2 epochs
         learning_rate=0.1,
-        inspect_data=False  # Set True to see dataset stats
+        inspect_data=False,  # Set True to see dataset stats
+        checkpoints_dir="/content/drive/MyDrive/checkpoints/resnet50"
     )
