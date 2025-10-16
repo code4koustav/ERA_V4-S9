@@ -325,7 +325,14 @@ model, train_losses, train_acc, test_losses, test_acc = main(
 - CUDA memory optimization required (batch size reduced from 32 to 8)
 - Training pipeline is functional and ready for extended training runs
 
+**Log Files:**
+- `logs/epoch_run.log`: Original training log (single line format)
+- `logs/epoch_run_formatted.log`: Formatted training log with 888 batch entries (one per line)
+- `logs/training_summary.txt`: Extracted training summary and metrics
+- Training logs show detailed batch-by-batch progress with loss and accuracy metrics
+
 **Next Steps:**
 - Increase number of epochs for better convergence
 - Monitor validation accuracy improvement over multiple epochs
 - Consider learning rate adjustments based on training curves
+- Use formatted logs for detailed training analysis
