@@ -25,40 +25,41 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
     return scheduler
 
 
-def train_loop(model, device, train_loader, optimizer, train_losses, train_acc):
+def train_loop(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4):
     """
-    Training loop for one epoch
+    Training loop for one epoch with gradient accumulation
     """
-    # ToDo Smita: Add loss function as inp + helpers for LRfinder/Onecycle LR
-    # early stopping, checkpoints in main.py loop -> add helper fns
     model.train()
     pbar = tqdm(train_loader)
     correct = 0
     processed = 0
+    optimizer.zero_grad()
+    
     for batch_idx, (data, target) in enumerate(pbar):
         # get samples
         data, target = data.to(device), target.to(device)
 
-        # Init
-        optimizer.zero_grad()
-
         # Predict
         y_pred = model(data)
 
-        # Calculate loss
-        loss = F.nll_loss(y_pred, target)
-        train_losses.append(loss)
+        # Calculate loss (divide by accumulation steps)
+        loss = F.nll_loss(y_pred, target) / accumulation_steps
+        train_losses.append(loss * accumulation_steps)
 
         # Backpropagation
         loss.backward()
-        optimizer.step()
+
+        # Update weights only after accumulation_steps
+        if (batch_idx + 1) % accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
 
         # Update pbar-tqdm
-        pred = y_pred.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+        pred = y_pred.argmax(dim=1, keepdim=True)
         correct += pred.eq(target.view_as(pred)).sum().item()
         processed += len(data)
 
-        pbar.set_description(desc= f'Loss={loss.item()} Batch_id={batch_idx} Accuracy={100*correct/processed:0.2f}')
+        pbar.set_description(desc= f'Loss={loss.item()*accumulation_steps} Batch_id={batch_idx} Accuracy={100*correct/processed:0.2f}')
         train_acc.append(100*correct/processed)
 
     return train_losses, train_acc

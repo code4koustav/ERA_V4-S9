@@ -2,11 +2,12 @@ import os
 import zipfile
 import torch
 import torch.optim as optim
-
+import gc
 from data_loader import generate_train_val_loader
 from model import ResNet50
 from train import train_loop, test_loop, get_lr_scheduler
 from utils import InspectImage
+
 
 
 def unzip_tiny_imagenet(zip_path, extract_to):
@@ -34,13 +35,13 @@ def unzip_tiny_imagenet(zip_path, extract_to):
     return True
 
 
-def main(data_path="/content/tiny-imagenet-200", 
-         zip_path="/content/tiny-imagenet.zip",
+def main(data_path="./content/tiny-imagenet-200", 
+         zip_path="./content/tiny-imagenet.zip",
          batch_size=128, 
          num_epochs=2, 
          learning_rate=0.1,
          inspect_data=False,
-         checkpoints_dir="checkpoints",
+         checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
          resume_training=False
          ):
     """
@@ -153,10 +154,7 @@ def main(data_path="/content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
-        train_losses, train_acc = train_loop(
-            model, device, train_loader, optimizer, train_losses, train_acc
-        )
-
+        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4)
         # Step the scheduler after each batch (OneCycleLR steps per batch)
         scheduler.step()
         
@@ -202,6 +200,29 @@ def main(data_path="/content/tiny-imagenet-200",
 
 
 if __name__ == "__main__":
+
+    # Clear GPU cache
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    # Set memory fraction (use only 80% of GPU memory)
+    torch.cuda.set_per_process_memory_fraction(0.7)
+
+   
+    # Enable memory efficient settings
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.deterministic = False
+
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
+    # Add this to check GPU memory
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name()}")
+        print(f"Total GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        print(f"Allocated memory: {torch.cuda.memory_allocated() / 1e9:.1f} GB")
+        print(f"Reserved memory: {torch.cuda.memory_reserved() / 1e9:.1f} GB")    
+
+
     # Configuration for Colab testing
     # Adjust these parameters based on your needs
     
@@ -217,11 +238,11 @@ if __name__ == "__main__":
     
     # For Colab testing (mounted Google Drive)
     model, *metrics = main(
-        data_path="/content/tiny-imagenet-200",
-        zip_path="/content/drive/MyDrive/tiny-imagenet-200.zip",
-        batch_size=128,  # Increase if you have enough GPU memory
+        data_path="./content/tiny-imagenet-200",
+        zip_path="./content/tiny-imagenet.zip",
+        batch_size=8,  # Increase if you have enough GPU memory
         num_epochs=2,    # Test with 1-2 epochs
         learning_rate=0.1,
         inspect_data=False,  # Set True to see dataset stats
-        checkpoints_dir="/content/drive/MyDrive/checkpoints/resnet50"
+        checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50"
     )
