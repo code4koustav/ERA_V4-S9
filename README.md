@@ -9,7 +9,10 @@ For testing the pipeline download the Tiny ImageNet-200 data
 3. ✅ Develop the model architecture in a py file
 4. ✅ Develop the train and test function along with a suitable LR strategy in a py file
 5. ✅ Create a `main.py` to orchestrate the pipeline and test in Colab for 1–2 epochs
-6. ⏳ Push all code to GitHub
+6. ✅ Push all code to GitHub
+7. ✅ Complete training runs with formatted logging and analysis
+8. ✅ Add comprehensive Jupyter notebook with training pipeline
+9. ✅ Implement gradient accumulation and memory optimization
 
 ## Project Files Description
 
@@ -51,17 +54,24 @@ ResNet50 implementation with adaptive configuration for both full ImageNet and T
 
 ### `train.py`
 Training and testing loops:
-- **`train_loop()`**: Single epoch training with progress tracking
+- **`train_loop()`**: Single epoch training with gradient accumulation and progress tracking
 - **`test_loop()`**: Model evaluation on validation set
-- Uses NLL loss and tracks accuracy metrics; `main.py` drives OneCycleLR scheduling
+- **`get_lr_scheduler()`**: OneCycleLR scheduler configuration
+- Uses NLL loss and tracks accuracy metrics; supports gradient accumulation for memory efficiency
+- Gradient accumulation (default: 4 steps) for effective larger batch sizes
 
 ### `Notebook.ipynb`
-Jupyter notebook containing:
+Comprehensive Jupyter notebook containing:
 - Data extraction and setup process for Tiny ImageNet-200
 - Data loader testing and validation
 - Dataset inspection and visualization examples
 - Interactive exploration of train/validation datasets
+- **Complete training pipeline implementation** (identical to main.py)
+- **GPU memory optimization and CUDA configuration**
+- **Training results analysis and visualization**
+- **Formatted log analysis and metrics extraction**
 - Shows dataset statistics: 100,000 training images, 10,000 validation images across 200 classes
+- Alternative training configurations and parameter tuning examples
 
 ## Dataset Information
 
@@ -122,6 +132,10 @@ ReLU → Output (C_out × 4)
 - **Output Activation**: Log Softmax
 - **Weight Initialization**: He initialization
 - **Device Support**: CPU and CUDA GPU
+- **Gradient Accumulation**: 4 steps (for memory efficiency)
+- **Memory Optimization**: CUDA memory fraction control (70% usage)
+- **Checkpoint Management**: Automatic saving on validation improvement
+- **Resume Training**: Support for resuming from saved checkpoints
 
 ## Usage Examples
 
@@ -250,7 +264,23 @@ inspector = InspectImage(dataset, normalize=True)
 inspector.show_augmented_images(transform=get_train_transform(), num_images=3, samples_per_image=3)
 ```
 
-### 5. Save and Load Model
+### 5. Resume Training from Checkpoint
+
+```python
+from main import main
+
+# Resume training from saved checkpoint
+model, *metrics = main(
+    data_path="./content/tiny-imagenet-200",
+    batch_size=8,
+    num_epochs=5,
+    learning_rate=0.1,
+    resume_training=True,  # Enable checkpoint resumption
+    checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50"
+)
+```
+
+### 6. Save and Load Model
 
 ```python
 import torch
@@ -265,6 +295,45 @@ model = ResNet50(num_classes=1000, use_maxpool=True)
 model.load_state_dict(torch.load('resnet50_imagenet.pth'))
 model.eval()
 ```
+
+### 7. Analyze Training Logs
+
+```python
+# Load and analyze formatted training logs
+import pandas as pd
+
+# Read formatted log file
+log_data = []
+with open("logs/epoch_run_formatted.log", 'r') as f:
+    for line in f:
+        if 'Loss=' in line and 'Accuracy=' in line:
+            parts = line.strip().split(', ')
+            loss = float(parts[0].split('Loss=')[1])
+            accuracy = float(parts[1].split('Accuracy=')[1].replace('%', ''))
+            log_data.append({'loss': loss, 'accuracy': accuracy})
+
+df_logs = pd.DataFrame(log_data)
+print(f"Average Loss: {df_logs['loss'].mean():.4f}")
+print(f"Average Accuracy: {df_logs['accuracy'].mean():.2f}%")
+```
+
+## Additional Files
+
+### Log Management
+- **`logs/epoch_run.log`**: Original training log (single line format)
+- **`logs/epoch_run_formatted.log`**: Formatted training log (888 batch entries)
+- **`logs/epoch2_log.log`**: Epoch 2 training log (single line format)
+- **`logs/epoch2_log_formatted.log`**: Formatted epoch 2 log (958 batch entries)
+- **`logs/training_summary.txt`**: Extracted training metrics
+- **`logs/epoch2_training_summary.txt`**: Epoch 2 training metrics
+
+### Utility Scripts
+- **`format_epoch2_log.py`**: Script to format single-line logs into readable format
+- **`download_imagenet.py`**: Dataset download utilities
+- **`volume_create.md`**: Volume creation documentation
+
+### Checkpoints
+- **`content/drive/MyDrive/checkpoints/resnet50/best.pth`**: Best model weights saved during training
 
 ## Model Parameters
 
@@ -284,12 +353,14 @@ Run the complete Tiny ImageNet training pipeline with OneCycleLR:
 from main import main
 
 model, train_losses, train_acc, test_losses, test_acc = main(
-    data_path="/content/tiny-imagenet-200",   # or local path
-    zip_path="/content/tiny-imagenet.zip",    # optional: auto-extracts if needed
-    batch_size=128,
-    num_epochs=2,
-    learning_rate=0.1,
-    inspect_data=False
+    data_path="./content/tiny-imagenet-200",   # or local path
+    zip_path="./content/tiny-imagenet.zip",    # optional: auto-extracts if needed
+    batch_size=8,                              # Reduced for CUDA memory efficiency
+    num_epochs=2,                              # Test with 1-2 epochs
+    learning_rate=0.1,                         # Maximum LR for OneCycleLR
+    inspect_data=False,                        # Set True to see dataset stats
+    checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
+    resume_training=False                       # Set True to resume from checkpoint
 )
 ```
 
@@ -377,3 +448,30 @@ model, train_losses, train_acc, test_losses, test_acc = main(
 - Consider learning rate adjustments based on training curves
 - Use formatted logs for detailed training analysis across epochs
 - Implement early stopping if validation accuracy plateaus
+
+## Recent Updates and Features
+
+### ✅ **Completed Features:**
+1. **Gradient Accumulation**: Implemented 4-step gradient accumulation for memory efficiency
+2. **Memory Optimization**: CUDA memory fraction control (70% usage) and memory management
+3. **Checkpoint Management**: Automatic saving and resumption from best model checkpoints
+4. **Comprehensive Logging**: Formatted log files with detailed batch-by-batch analysis
+5. **Jupyter Integration**: Complete training pipeline available in interactive notebook
+6. **Multi-Epoch Training**: Successfully tested 2-epoch training with accuracy improvements
+7. **Log Analysis Tools**: Scripts for formatting and analyzing training logs
+8. **Training Visualization**: Progress tracking and metrics visualization in notebook
+
+### 🚀 **Key Improvements:**
+- **Training Stability**: Consistent batch processing across multiple epochs
+- **Memory Efficiency**: Reduced batch size with gradient accumulation for stable training
+- **Progress Tracking**: Real-time loss and accuracy monitoring with progress bars
+- **Model Persistence**: Automatic checkpoint saving on validation improvement
+- **Reproducibility**: Fixed random seeds and deterministic training settings
+- **Documentation**: Comprehensive README with examples and usage instructions
+
+### 📊 **Training Results Summary:**
+- **Epoch 1**: Training accuracy 0.73%, Validation accuracy 1.60%
+- **Epoch 2**: Training accuracy improved to 1.32%, showing learning progress
+- **Total Training Time**: ~88 minutes for 2 epochs
+- **Model Parameters**: 23.9M parameters optimized for Tiny ImageNet
+- **Memory Usage**: Efficient GPU utilization with 70% memory fraction
