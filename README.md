@@ -292,3 +292,40 @@ model, train_losses, train_acc, test_losses, test_acc = main(
     inspect_data=False
 )
 ```
+
+## Training Run Results
+
+### Tiny ImageNet-200 Training Summary
+
+**Configuration:**
+- Model: ResNet50 (adapted for Tiny ImageNet)
+- Dataset: Tiny ImageNet-200 (100,000 training images, 10,000 validation images)
+- Image Size: 64×64×3 (RGB)
+- Classes: 200
+- Batch Size: 8 (reduced to avoid CUDA memory issues)
+- Epochs: 1 (initial test run)
+- Learning Rate: 0.01 (with OneCycleLR scheduler)
+
+**Training Results:**
+- **Training Loss**: 5.3706
+- **Training Accuracy**: 0.73%
+- **Validation Loss**: 7.0334
+- **Validation Accuracy**: 1.60%
+- **Learning Rate**: 0.010000
+
+**Training Progress:**
+- Successfully completed 1 epoch with 12,500 batches
+- Model weights saved due to validation loss improvement
+- Training time: ~43 minutes for 1 epoch
+- Progress tracking showed consistent batch processing with accuracy around 0.71-0.73%
+
+**Key Observations:**
+- Initial training shows expected behavior for early epochs (low accuracy, high loss)
+- Model successfully saved checkpoints when validation loss improved
+- CUDA memory optimization required (batch size reduced from 32 to 8)
+- Training pipeline is functional and ready for extended training runs
+
+**Next Steps:**
+- Increase number of epochs for better convergence
+- Monitor validation accuracy improvement over multiple epochs
+- Consider learning rate adjustments based on training curves
