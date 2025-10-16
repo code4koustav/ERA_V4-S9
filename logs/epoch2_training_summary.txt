@@ -1,0 +1,11 @@
+Epoch 1 Training Summary:
+========================================
+Training Loss: 5.3706
+Training Accuracy: 0.73%
+Validation Loss: 7.0334
+Validation Accuracy: 1.60%
+Learning Rate: 0.010000
+
+Checkpoint saved due to validation loss improvement
+
+Final Batch Accuracy: 0.73%
