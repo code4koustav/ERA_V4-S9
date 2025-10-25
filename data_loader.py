@@ -94,7 +94,7 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, te
     return train_loader, val_loader
 
 
-def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_transform=True):
+def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_transform=True, num_workers=8):
     """
     Creates DataLoader objects for training and validation sets from Huggingface.
 
@@ -129,10 +129,10 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_trans
     torch.manual_seed(1)
 
     dataloader_args = dict(
-        batch_size=batch_size, num_workers=8, pin_memory=True, shuffle=True
+        batch_size=batch_size, num_workers=num_workers, pin_memory=True, shuffle=True
     ) if cuda else dict(batch_size=batch_size, shuffle=True)
 
     train_loader = DataLoader(train_dataset, **dataloader_args)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     return train_loader, val_loader

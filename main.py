@@ -38,11 +38,12 @@ def unzip_tiny_imagenet(zip_path, extract_to):
 def main(data_path="./content/tiny-imagenet-200", 
          zip_path="./content/tiny-imagenet.zip",
          batch_size=128, 
-         num_epochs=2, 
+         num_epochs=2,
          learning_rate=0.1,
          inspect_data=False,
          checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
-         resume_training=False
+         resume_training=False,
+         num_workers=8,
          ):
     """
     Main function to run the complete training pipeline
@@ -78,7 +79,7 @@ def main(data_path="./content/tiny-imagenet-200",
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
     print(f"  - Batch size: {batch_size}")
     # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, test_transform=True)
-    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, test_transform=True)
+    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, test_transform=True, num_workers=num_workers)
     print(f"✓ Train loader: {len(train_loader.dataset)} images, {len(train_loader)} batches")
     print(f"✓ Val loader: {len(val_loader.dataset)} images, {len(val_loader)} batches")
     
@@ -256,5 +257,6 @@ if __name__ == "__main__":
         num_epochs=2,    # Test with 1-2 epochs
         learning_rate=0.1,
         inspect_data=False,  # Set True to see dataset stats
-        checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50"
+        checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
+        num_workers=8,
     )
