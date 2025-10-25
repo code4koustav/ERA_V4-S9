@@ -99,7 +99,8 @@ def main(data_path="./content/tiny-imagenet-200",
     print(f"  - Device: {device}")
     
     # For Tiny ImageNet: 200 classes, 64x64 images, no maxpool
-    model = ResNet50(num_classes=200, use_maxpool=False)
+    # model = ResNet50(num_classes=200, use_maxpool=False)
+    model = ResNet50(num_classes=1000, use_maxpool=True)
     model = model.to(device)
     
     # Count parameters
