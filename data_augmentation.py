@@ -104,3 +104,26 @@ class AlbumentationsImageDataset(Dataset):
         if self.transform:
             image = self.transform(image=image)["image"]
         return image, label
+
+# -----------------------------
+# Dataset wrapper for Huggingface Dataset
+# -----------------------------
+
+class HFDatasetWrapper(Dataset):
+    """
+    Wraps a Hugging Face image dataset for use with Albumentations transforms.
+    """
+    def __init__(self, hf_dataset, transform=None):
+        self.dataset = hf_dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        sample = self.dataset[idx]
+        image = np.array(sample["image"])  # PIL -> NumPy
+        label = sample["label"]
+        if self.transform:
+            image = self.transform(image=image)["image"]
+        return image, label

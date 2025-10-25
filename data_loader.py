@@ -5,9 +5,10 @@ Reorganizes Tiny ImageNet val split and builds Albumentations datasets/DataLoade
 
 import torch
 from torch.utils.data import DataLoader
-from data_augmentation import AlbumentationsImageDataset, get_train_transform, get_test_transform
+from data_augmentation import AlbumentationsImageDataset, HFDatasetWrapper, get_train_transform, get_test_transform
 import os
 import shutil
+from datasets import load_dataset
 
 def reorganize_val_folder(val_dir):
     """
@@ -92,3 +93,46 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, te
 
     return train_loader, val_loader
 
+
+def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_transform=True):
+    """
+    Creates DataLoader objects for training and validation sets from Huggingface.
+
+    Args:
+        batch_size (int): Batch size
+        train_transform (bool): Apply training augmentations if True
+        test_transform (bool): Apply test/validation transformations if True
+    """
+
+    # Load dataset from huggingface cache dir
+    train_dataset = load_dataset(
+        "ILSVRC/imagenet-1k",
+        split="train",
+        cache_dir="/Data/hf_cache"
+    )
+
+    val_dataset = load_dataset(
+        "ILSVRC/imagenet-1k",
+        split="validation",
+        cache_dir="/Data/hf_cache"
+    )
+
+    # Select transforms based on flags
+    train_tf = get_train_transform() if train_transform else None
+    val_tf = get_test_transform() if test_transform else None
+
+    train_dataset = HFDatasetWrapper(train_dataset, transform=train_tf)
+    val_dataset = HFDatasetWrapper(val_dataset, transform=val_tf)
+
+    # CUDA settings
+    cuda = torch.cuda.is_available()
+    torch.manual_seed(1)
+
+    dataloader_args = dict(
+        batch_size=batch_size, num_workers=8, pin_memory=True, shuffle=True
+    ) if cuda else dict(batch_size=batch_size, shuffle=True)
+
+    train_loader = DataLoader(train_dataset, **dataloader_args)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+
+    return train_loader, val_loader

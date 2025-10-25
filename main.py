@@ -3,7 +3,7 @@ import zipfile
 import torch
 import torch.optim as optim
 import gc
-from data_loader import generate_train_val_loader
+from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
 from train import train_loop, test_loop, get_lr_scheduler
 from utils import InspectImage
@@ -77,7 +77,8 @@ def main(data_path="./content/tiny-imagenet-200",
     # ====== STEP 2: Load Data ======
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
     print(f"  - Batch size: {batch_size}")
-    train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, test_transform=True)
+    # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, test_transform=True)
+    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, test_transform=True)
     print(f"✓ Train loader: {len(train_loader.dataset)} images, {len(train_loader)} batches")
     print(f"✓ Val loader: {len(val_loader.dataset)} images, {len(val_loader)} batches")
     
