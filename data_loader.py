@@ -108,13 +108,13 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_trans
     train_dataset = load_dataset(
         "ILSVRC/imagenet-1k",
         split="train",
-        cache_dir="/Data/hf_cache"
+        cache_dir="/Data/datasets_cache"
     )
 
     val_dataset = load_dataset(
         "ILSVRC/imagenet-1k",
         split="validation",
-        cache_dir="/Data/hf_cache"
+        cache_dir="/Data/datasets_cache"
     )
 
     # Select transforms based on flags
