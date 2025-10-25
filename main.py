@@ -185,6 +185,17 @@ def main(data_path="./content/tiny-imagenet-200",
             }, best_weights_file)
             print(f"Validation loss improved to {best_loss:.4f}. Saving model weights.")
 
+        # Save every epoch as well, for backup
+        epoch_weights_file = os.path.join(checkpoints_dir, f"epoch-{epoch}.pth")
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'epoch_val_loss': test_losses[-1],
+            # Add any other relevant information like hyperparameters
+        }, epoch_weights_file)
+        print(f"Saved epoch weights: {epoch_weights_file}")
+
 
     # ====== Final Summary ======
     print("\n" + "="*70)
