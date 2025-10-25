@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import OneCycleLR
+from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 
 
@@ -92,3 +93,79 @@ def test_loop(model, device, test_loader, test_losses, test_acc):
     return test_losses, test_acc
 
 
+def train_loop_mp(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4, use_amp=True):
+    """
+    Training loop for one epoch with gradient accumulation and mixed precision
+    """
+    # ToDo Smita: Merge the two train functions, use: scaler = GradScaler(enabled=use_amp)
+
+    scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
+    model.train()
+    pbar = tqdm(train_loader)
+    correct = 0
+    processed = 0
+    optimizer.zero_grad(set_to_none=True)
+
+    for batch_idx, (data, target) in enumerate(pbar):
+        # get samples
+        data, target = data.to(device), target.to(device)
+
+        # Forward + loss under autocast
+        with autocast(dtype=torch.float16): # or bfloat16 on newer GPUs (e.g. A100, H100)
+            # Predict
+            y_pred = model(data)
+
+            # Calculate loss (divide by accumulation steps)
+            loss = F.nll_loss(y_pred, target) / accumulation_steps
+
+        # Track unscaled loss (for logging)
+        train_losses.append(loss.detach().item() * accumulation_steps)
+
+        # Scale the loss and perform backward pass
+        scaler.scale(loss).backward()
+
+        # Update weights only after accumulation_steps
+        if (batch_idx + 1) % accumulation_steps == 0:
+            # Step optimizer through scaler
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
+
+        # Update pbar-tqdm
+        pred = y_pred.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target.view_as(pred)).sum().item()
+        processed += len(data)
+
+        pbar.set_description(
+            desc=f'Loss={loss.item() * accumulation_steps} Batch_id={batch_idx} Accuracy={100 * correct / processed:0.2f}')
+        train_acc.append(100 * correct / processed)
+
+    return train_losses, train_acc
+
+
+def test_loop_mp(model, device, test_loader, test_losses, test_acc):
+    """
+    Test loop for one epoch
+    """
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad(), autocast(dtype=torch.float16):  # same precision context
+        #autocast(enabled=True):
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+    test_losses.append(test_loss)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+
+    test_acc.append(100. * correct / len(test_loader.dataset))
+
+    return test_losses, test_acc
