@@ -1,6 +1,7 @@
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from torchvision import datasets
+import torch
 from torch.utils.data import Dataset
 import numpy as np
 
@@ -121,9 +122,25 @@ class HFDatasetWrapper(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
+        print(f"In getitem of HFDatasetWrapper: {idx}")
         sample = self.dataset[idx]
-        image = np.array(sample["image"])  # PIL -> NumPy
+        image = sample["image"]
+
+        # Ensure 3 channels (convert grayscale → RGB)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        image = np.array(image) # PIL -> NumPy
         label = sample["label"]
+
+        print("Type:", type(image), "Shape:", getattr(image, "shape", None))
         if self.transform:
             image = self.transform(image=image)["image"]
-        return image, label
+
+        # Ensure it's a torch.Tensor
+        if not torch.is_tensor(image):
+            # image = torch.from_numpy(image).permute(2, 0, 1)
+            image = torch.tensor(image)
+        image = image.contiguous()
+
+        return image, torch.tensor(label)
