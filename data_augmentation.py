@@ -122,7 +122,7 @@ class HFDatasetWrapper(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        print(f"In getitem of HFDatasetWrapper: {idx}")
+        # print(f"In getitem of HFDatasetWrapper: {idx}")
         sample = self.dataset[idx]
         image = sample["image"]
 
@@ -133,7 +133,7 @@ class HFDatasetWrapper(Dataset):
         image = np.array(image) # PIL -> NumPy
         label = sample["label"]
 
-        print("Type:", type(image), "Shape:", getattr(image, "shape", None))
+        # print("Type:", type(image), "Shape:", getattr(image, "shape", None))
         if self.transform:
             image = self.transform(image=image)["image"]
 

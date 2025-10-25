@@ -5,7 +5,7 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, test_loop, get_lr_scheduler, train_loop_mp, test_loop_mp
+from train import train_loop, test_loop, get_lr_scheduler
 from utils import InspectImage
 
 
@@ -132,13 +132,6 @@ def main(data_path="./content/tiny-imagenet-200",
     print(f"\n[STEP 6/6] Starting training...")
     print("="*70)
 
-    if use_amp:
-        train_fn = train_loop_mp
-        test_fn = test_loop_mp
-    else:
-        train_fn = train_loop
-        test_fn = test_loop
-
     # Tracking metrics
     train_losses = []
     train_acc = []
@@ -165,14 +158,14 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
-        train_losses, train_acc = train_fn(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4)
+        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4, use_amp=use_amp)
         # Step the scheduler after each batch (OneCycleLR steps per batch)
         scheduler.step()
         
         # Validation
         print("\n🔍 Validating...")
-        test_losses, test_acc = test_fn(
-            model, device, val_loader, test_losses, test_acc
+        test_losses, test_acc = test_loop(
+            model, device, val_loader, test_losses, test_acc, use_amp=use_amp
         )
         
         # Print epoch summary
