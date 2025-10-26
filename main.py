@@ -1,4 +1,6 @@
 import os
+import time
+import datetime
 import zipfile
 import torch
 import torch.optim as optim
@@ -46,6 +48,7 @@ def main(data_path="./content/tiny-imagenet-200",
          resume_training=False,
          num_workers=8,
          use_amp=True,
+         hf_dataset=True,
          experiment_name="MyTrainRun"
          ):
     """
@@ -65,14 +68,15 @@ def main(data_path="./content/tiny-imagenet-200",
     
     # ====== STEP 1: Unzip Dataset (if needed) ======
     print("\n[STEP 1/6] Checking dataset...")
-    if not os.path.exists(data_path):
-        print(f"Dataset not found. Attempting to extract from {zip_path}")
-        extract_to = os.path.dirname(data_path) or "/content/"
-        if not unzip_tiny_imagenet(zip_path, extract_to):
-            print("❌ Failed to extract dataset. Exiting...")
-            return
-    else:
-        print(f"✓ Dataset found at: {data_path}")
+    if not hf_dataset:
+        if not os.path.exists(data_path):
+            print(f"Dataset not found. Attempting to extract from {zip_path}")
+            extract_to = os.path.dirname(data_path) or "/content/"
+            if not unzip_tiny_imagenet(zip_path, extract_to):
+                print("❌ Failed to extract dataset. Exiting...")
+                return
+        else:
+            print(f"✓ Dataset found at: {data_path}")
 
     # Create output folders if needed
     if not os.path.exists(checkpoints_dir):
@@ -156,6 +160,7 @@ def main(data_path="./content/tiny-imagenet-200",
 
 
     for epoch in range(start_epoch, num_epochs + 1):
+        start_time = time.time()
         print(f"\n{'='*70}")
         print(f"📊 EPOCH {epoch}/{num_epochs}")
         print(f"{'='*70}")
@@ -163,7 +168,7 @@ def main(data_path="./content/tiny-imagenet-200",
         # Training
         print("\n🔄 Training...")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scaler, train_losses, train_acc,
-                                             accumulation_steps=4, use_amp=use_amp)
+                                             accumulation_steps=4)
         # Step the scheduler after each batch (OneCycleLR steps per batch)
         scheduler.step()
         
@@ -208,6 +213,8 @@ def main(data_path="./content/tiny-imagenet-200",
         for i, param_group in enumerate(optimizer.param_groups):
             writer.add_scalar(f"LR/group_{i}", param_group["lr"], epoch)
 
+        secs = time.time() - start_time
+        print(f"Time taken for epoch {epoch}: {str(datetime.timedelta(seconds = secs))}")
 
     # ====== Final Summary ======
     print("\n" + "="*70)
@@ -262,16 +269,32 @@ if __name__ == "__main__":
     #     inspect_data=False
     # )
     
-    # For Colab testing (mounted Google Drive)
+    # # For Colab testing (mounted Google Drive)
+    # model, *metrics = main(
+    #     data_path="./content/tiny-imagenet-200",
+    #     zip_path="./content/tiny-imagenet.zip",
+    #     batch_size=8,  # Increase if you have enough GPU memory
+    #     num_epochs=2,    # Test with 1-2 epochs
+    #     learning_rate=0.1,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
+    #     num_workers=8,
+    #     use_amp=True,
+    #     hf_dataset=True,
+    #     # experiment_name=""
+    # )
+
+    # For g4dn.xlarge
     model, *metrics = main(
-        data_path="./content/tiny-imagenet-200",
-        zip_path="./content/tiny-imagenet.zip",
-        batch_size=8,  # Increase if you have enough GPU memory
-        num_epochs=2,    # Test with 1-2 epochs
-        learning_rate=0.1,
+        data_path="",
+        zip_path="",
+        batch_size=256,  # Increase if you have enough GPU memory
+        num_epochs=30,
+        learning_rate=0.001,
         inspect_data=False,  # Set True to see dataset stats
-        checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
-        num_workers=8,
+        checkpoints_dir="/Data/checkpoints",
+        num_workers=6,
         use_amp=True,
-        # experiment_name=""
+        hf_dataset=True,
+        experiment_name="Run1-basic"
     )
