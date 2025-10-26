@@ -5,7 +5,7 @@ Reorganizes Tiny ImageNet val split and builds Albumentations datasets/DataLoade
 
 import torch
 from torch.utils.data import DataLoader
-from data_augmentation import AlbumentationsImageDataset, HFDatasetWrapper, get_train_transform, get_test_transform
+from data_augmentation import AlbumentationsImageDataset, HFDatasetWrapper, get_train_transform, get_val_transform
 import os
 import shutil
 from datasets import load_dataset
@@ -42,11 +42,11 @@ def load_imagenet_dataset(data_path):
     reorganize_val_folder(val_dir)
 
     train_dataset = AlbumentationsImageDataset(train_dir, transform=get_train_transform())
-    val_dataset = AlbumentationsImageDataset(val_dir, transform=get_test_transform())
+    val_dataset = AlbumentationsImageDataset(val_dir, transform=get_val_transform())
     return train_dataset, val_dataset
 
 
-def generate_train_val_loader(data_path, batch_size=64, train_transform=True, test_transform=True):
+def generate_train_val_loader(data_path, batch_size=64, train_transform=True, val_transform=True):
     """
     Creates DataLoader objects for training and validation sets.
     
@@ -54,7 +54,7 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, te
         data_path (str): Path to ImageNet/Tiny ImageNet folder
         batch_size (int): Batch size
         train_transform (bool): Apply training augmentations if True
-        test_transform (bool): Apply test/validation transformations if True
+        val_transform (bool): Apply validation transformations if True
     """
 
     train_dir = os.path.join(data_path, "train")
@@ -66,7 +66,7 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, te
 
     # Select transforms based on flags
     train_tf = get_train_transform() if train_transform else None
-    val_tf = get_test_transform() if test_transform else None
+    val_tf = get_val_transform() if val_transform else None
 
     # Create datasets
     train_dataset = AlbumentationsImageDataset(train_dir, transform=train_tf)
@@ -94,15 +94,16 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, te
     return train_loader, val_loader
 
 
-def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_transform=True, num_workers=8):
+def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transform=True, num_workers=8):
     """
     Creates DataLoader objects for training and validation sets from Huggingface.
 
     Args:
         batch_size (int): Batch size
         train_transform (bool): Apply training augmentations if True
-        test_transform (bool): Apply test/validation transformations if True
+        val_transform (bool): Apply validation transformations if True
     """
+    # ToDo Smita: Code cleanup, keep one function for train_val_loader
 
     # Load dataset from huggingface cache dir
     train_dataset = load_dataset(
@@ -119,7 +120,7 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, test_trans
 
     # Select transforms based on flags
     train_tf = get_train_transform() if train_transform else None
-    val_tf = get_test_transform() if test_transform else None
+    val_tf = get_val_transform() if val_transform else None
 
     train_dataset = HFDatasetWrapper(train_dataset, transform=train_tf)
     val_dataset = HFDatasetWrapper(val_dataset, transform=val_tf)

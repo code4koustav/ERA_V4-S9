@@ -7,7 +7,7 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, test_loop, get_lr_scheduler, load_checkpoint, save_checkpoint
+from train import train_loop, val_loop, get_lr_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
@@ -85,8 +85,8 @@ def main(data_path="./content/tiny-imagenet-200",
     # ====== STEP 2: Load Data ======
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
     print(f"  - Batch size: {batch_size}")
-    # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, test_transform=True)
-    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, test_transform=True, num_workers=num_workers)
+    # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, val_transform=True)
+    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, val_transform=True, num_workers=num_workers)
     print(f"✓ Train loader: {len(train_loader.dataset)} images, {len(train_loader)} batches")
     print(f"✓ Val loader: {len(val_loader.dataset)} images, {len(val_loader)} batches")
     
@@ -141,8 +141,8 @@ def main(data_path="./content/tiny-imagenet-200",
     # Tracking metrics
     train_losses = []
     train_acc = []
-    test_losses = []
-    test_acc = []
+    val_losses = []
+    val_acc = []
     best_loss = float('inf')
     best_weights_file = os.path.join(checkpoints_dir, 'best.pth')
 
@@ -174,34 +174,34 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Validation
         print("\n🔍 Validating...")
-        test_losses, test_acc = test_loop(
-            model, device, val_loader, test_losses, test_acc, use_amp=use_amp
+        val_losses, val_acc = val_loop(
+            model, device, val_loader, val_losses, val_acc, use_amp=use_amp
         )
         
         # Print epoch summary
         print(f"\n📈 Epoch {epoch} Summary:")
         print(f"  - Train Loss: {train_losses[-1]:.4f}")
         print(f"  - Train Acc: {train_acc[-1]:.2f}%")
-        print(f"  - Val Loss: {test_losses[-1]:.4f}")
-        print(f"  - Val Acc: {test_acc[-1]:.2f}%")
+        print(f"  - Val Loss: {val_losses[-1]:.4f}")
+        print(f"  - Val Acc: {val_acc[-1]:.2f}%")
         print(f"  - Current LR: {optimizer.param_groups[0]['lr']:.6f}")
 
         # Save best model if validation loss improved. Also save every x epochs?
-        if test_losses[-1] < best_loss:
-            best_loss = test_losses[-1]
+        if val_losses[-1] < best_loss:
+            best_loss = val_losses[-1]
             print(f"Validation loss improved to {best_loss:.4f}. Saving model weights to {best_weights_file}")
-            save_checkpoint(model, optimizer, scaler, epoch, best_loss, test_losses[-1], best_weights_file, use_amp)
+            save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], best_weights_file, use_amp)
 
         # Save every epoch as well, for backup
         epoch_weights_file = os.path.join(checkpoints_dir, f"epoch-{epoch}.pth")
         print(f"Saving epoch weights: {epoch_weights_file}")
-        save_checkpoint(model, optimizer, scaler, epoch, best_loss, test_losses[-1], epoch_weights_file, use_amp)
+        save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], epoch_weights_file, use_amp)
 
         # Aggregate epoch metrics
         train_loss_epoch = sum(train_losses[-len(train_loader):]) / len(train_loader)
         train_acc_epoch = train_acc[-1]
-        val_loss_epoch = sum(test_losses[-len(val_loader):]) / len(val_loader)
-        val_acc_epoch = test_acc[-1]
+        val_loss_epoch = sum(val_losses[-len(val_loader):]) / len(val_loader)
+        val_acc_epoch = val_acc[-1]
 
         # Log to Tensorboard
         writer.add_scalar("Loss/train", train_loss_epoch, epoch)
@@ -222,14 +222,14 @@ def main(data_path="./content/tiny-imagenet-200",
     print("="*70)
     print(f"\nFinal Results:")
     print(f"  - Best Train Accuracy: {max(train_acc):.2f}%")
-    print(f"  - Best Val Accuracy: {max(test_acc):.2f}%")
+    print(f"  - Best Val Accuracy: {max(val_acc):.2f}%")
     print(f"  - Final Train Loss: {train_losses[-1]:.4f}")
-    print(f"  - Final Val Loss: {test_losses[-1]:.4f}")
+    print(f"  - Final Val Loss: {val_losses[-1]:.4f}")
     print("="*70)
 
     writer.close()
 
-    return model, train_losses, train_acc, test_losses, test_acc
+    return model, train_losses, train_acc, val_losses, val_acc
 
 
 if __name__ == "__main__":

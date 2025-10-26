@@ -66,7 +66,7 @@ def get_train_transform():
     ])
 
 
-def get_test_transform():
+def get_val_transform():
     return A.Compose([
         # Resize smaller edge to 256 and preserve aspect ratio
         A.Resize(height=256, width=256),

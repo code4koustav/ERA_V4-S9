@@ -189,8 +189,9 @@ sudo mount -a
 - Virtual environment is at:
    source my-venv/bin/activate
 
- - Some python packages were installed after AMI image was created, so they got missed..
-   uv pip install albumentations
+ - Some python packages were installed after AMI image was created, so they got missed..   
+   uv pip install albumentations   
+   uv pip install tensorboard
 
  - Pull latest master on the git repo
  - Update hyperparams in main.py

@@ -20,13 +20,13 @@ For testing the pipeline download the Tiny ImageNet-200 data
 ImageNet/Tiny ImageNet data loading built around Albumentations:
 - **`reorganize_val_folder(val_dir)`**: Converts Tiny ImageNet `val` split to `ImageFolder` layout (idempotent)
 - **`load_imagenet_dataset(data_path)`**: Returns Albumentations-backed train/val datasets
-- **`generate_train_val_loader(data_path, batch_size, train_transform, test_transform)`**: Builds train/val `DataLoader`s with CUDA-friendly settings (workers, pin memory)
+- **`generate_train_val_loader(data_path, batch_size, train_transform, val_transform)`**: Builds train/val `DataLoader`s with CUDA-friendly settings (workers, pin memory)
 - Integrates with transforms from `data_augmentation.py`
 
 ### `data_augmentation.py`
 Albumentations-based augmentation and dataset wrapper:
 - **`get_train_transform()`**: RandomResizedCrop(224), flips, color jitter/HSV, grayscale (p=0.2), GaussianBlur, CoarseDropout, Normalize, `ToTensorV2`
-- **`get_test_transform()`**: Resize(256) → CenterCrop(224), Normalize, `ToTensorV2`
+- **`get_val_transform()`**: Resize(256) → CenterCrop(224), Normalize, `ToTensorV2`
 - **`AlbumentationsImageDataset`**: Wraps `torchvision.datasets.ImageFolder` to apply Albumentations transforms
 
 ### `utils.py`
@@ -55,7 +55,7 @@ ResNet50 implementation with adaptive configuration for both full ImageNet and T
 ### `train.py`
 Training and testing loops:
 - **`train_loop()`**: Single epoch training with gradient accumulation and progress tracking
-- **`test_loop()`**: Model evaluation on validation set
+- **`val_loop()`**: Model evaluation on validation set
 - **`get_lr_scheduler()`**: OneCycleLR scheduler configuration
 - Uses NLL loss and tracks accuracy metrics; supports gradient accumulation for memory efficiency
 - Gradient accumulation (default: 4 steps) for effective larger batch sizes
@@ -182,7 +182,7 @@ import torch
 import torch.optim as optim
 from model import ResNet50
 from data_loader import generate_train_val_loader
-from train import train_loop, test_loop
+from train import train_loop, val_loop
 
 # Setup device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -201,22 +201,22 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 # Training tracking
 train_losses = []
 train_acc = []
-test_losses = []
-test_acc = []
+val_losses = []
+val_acc = []
 
 # Train for one epoch
 for epoch in range(1, 11):  # 10 epochs
-    print(f"\nEpoch {epoch}:")
-    
-    # Training
-    train_losses, train_acc = train_loop(
-        model, device, train_loader, optimizer, train_losses, train_acc
-    )
-    
-    # Testing
-    test_losses, test_acc = test_loop(
-        model, device, val_loader, test_losses, test_acc
-    )
+  print(f"\nEpoch {epoch}:")
+
+  # Training
+  train_losses, train_acc = train_loop(
+    model, device, train_loader, optimizer, train_losses, train_acc
+  )
+
+  # Testing
+  val_losses, val_acc = val_loop(
+    model, device, val_loader, val_losses, val_acc
+  )
 ```
 
 ### 3. Model Inference
@@ -352,7 +352,7 @@ Run the complete Tiny ImageNet training pipeline with OneCycleLR:
 ```python
 from main import main
 
-model, train_losses, train_acc, test_losses, test_acc = main(
+model, train_losses, train_acc, val_losses, val_acc = main(
     data_path="./content/tiny-imagenet-200",   # or local path
     zip_path="./content/tiny-imagenet.zip",    # optional: auto-extracts if needed
     batch_size=8,                              # Reduced for CUDA memory efficiency

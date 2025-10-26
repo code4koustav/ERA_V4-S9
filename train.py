@@ -106,29 +106,29 @@ def train_loop(model, device, train_loader, optimizer, scaler, train_losses, tra
     return train_losses, train_acc
 
 
-def test_loop(model, device, test_loader, test_losses, test_acc, use_amp):
+def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
     """
-    Test loop for one epoch with mixed precision option
+    Val loop for one epoch with mixed precision option
     """
     model.eval()
-    test_loss = 0
+    val_loss = 0
     correct = 0
     # with torch.no_grad(), autocast(dtype=torch.float16):  # same precision context
     with torch.no_grad(), autocast(enabled=use_amp):
-        for data, target in test_loader:
+        for data, target in val_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
-    test_loss /= len(test_loader.dataset)
-    test_losses.append(test_loss)
+    val_loss /= len(val_loader.dataset)
+    val_losses.append(val_loss)
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+    print('\nVal set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
+        val_loss, correct, len(val_loader.dataset),
+        100. * correct / len(val_loader.dataset)))
 
-    test_acc.append(100. * correct / len(test_loader.dataset))
+    val_acc.append(100. * correct / len(val_loader.dataset))
 
-    return test_losses, test_acc
+    return val_losses, val_acc
