@@ -5,8 +5,9 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, test_loop, get_lr_scheduler
+from train import train_loop, test_loop, get_lr_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
+from torch.cuda.amp import GradScaler
 
 
 
@@ -140,13 +141,12 @@ def main(data_path="./content/tiny-imagenet-200",
     best_loss = float('inf')
     best_weights_file = os.path.join(checkpoints_dir, 'best.pth')
 
+    # Create Scaler if mixed precision is true
+    scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
+
     if resume_training and os.path.exists(best_weights_file):
-        checkpoint = torch.load(best_weights_file, weights_only=True)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch']
-        best_loss = checkpoint['best_val_loss']
-        print(f"\nFound previous checkpoint. Resuming training from {start_epoch} epoch(s)...")
+        # Resume from best weights, or from last epoch?
+        start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, best_weights_file, device, use_amp)
     else:
         start_epoch = 1
 
@@ -158,7 +158,8 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
-        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4, use_amp=use_amp)
+        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scaler, train_losses, train_acc,
+                                             accumulation_steps=4, use_amp=use_amp)
         # Step the scheduler after each batch (OneCycleLR steps per batch)
         scheduler.step()
         
@@ -179,25 +180,13 @@ def main(data_path="./content/tiny-imagenet-200",
         # Save best model if validation loss improved. Also save every x epochs?
         if test_losses[-1] < best_loss:
             best_loss = test_losses[-1]
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'best_val_loss': best_loss,
-                # Add any other relevant information like hyperparameters
-            }, best_weights_file)
-            print(f"Validation loss improved to {best_loss:.4f}. Saving model weights.")
+            print(f"Validation loss improved to {best_loss:.4f}. Saving model weights to {best_weights_file}")
+            save_checkpoint(model, optimizer, scaler, epoch, best_loss, test_losses[-1], best_weights_file, use_amp)
 
         # Save every epoch as well, for backup
         epoch_weights_file = os.path.join(checkpoints_dir, f"epoch-{epoch}.pth")
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'epoch_val_loss': test_losses[-1],
-            # Add any other relevant information like hyperparameters
-        }, epoch_weights_file)
-        print(f"Saved epoch weights: {epoch_weights_file}")
+        print(f"Saving epoch weights: {epoch_weights_file}")
+        save_checkpoint(model, optimizer, scaler, epoch, best_loss, test_losses[-1], epoch_weights_file, use_amp)
 
 
     # ====== Final Summary ======

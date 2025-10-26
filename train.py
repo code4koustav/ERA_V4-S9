@@ -26,13 +26,43 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
     return scheduler
 
 
-def train_loop(model, device, train_loader, optimizer, train_losses, train_acc, accumulation_steps=4, use_amp=True):
-    """
-    Training loop for one epoch with gradient accumulation and mixed precision
-    """
-    # ToDo Smita: Merge the two train functions, use: scaler = GradScaler(enabled=use_amp)
+def save_checkpoint(model, optimizer, scaler, epoch, best_loss, epoch_val_loss, path, use_amp):
+    checkpoint = {
+        "epoch": epoch,
+        "model_state": model.state_dict(),
+        "optimizer_state": optimizer.state_dict(),
+        'best_val_loss': best_loss,
+        'epoch_val_loss': epoch_val_loss,
+        # Add any other relevant information like hyperparameters
+    }
 
-    scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
+    # Save AMP scaler state only if AMP is enabled
+    if use_amp:
+        checkpoint["scaler_state"] = scaler.state_dict()
+
+    torch.save(checkpoint, path)
+    print(f"✅ Checkpoint saved to {path}")
+
+
+def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
+    checkpoint = torch.load(path, map_location=device, weights_only=True)
+    model.load_state_dict(checkpoint["model_state"])
+    optimizer.load_state_dict(checkpoint["optimizer_state"])
+    best_loss = checkpoint['best_val_loss']
+
+    if use_amp and "scaler_state" in checkpoint:
+        scaler.load_state_dict(checkpoint["scaler_state"])
+
+    start_epoch = checkpoint.get("epoch", 0) + 1
+    print(f"✅ Checkpoint loaded. Resuming from epoch {start_epoch}")
+
+    return start_epoch, best_loss
+
+
+def train_loop(model, device, train_loader, optimizer, scaler, train_losses, train_acc, accumulation_steps=4):
+    """
+    Training loop for one epoch with gradient accumulation and mixed precision option
+    """
     model.train()
     pbar = tqdm(train_loader)
     correct = 0
@@ -78,7 +108,7 @@ def train_loop(model, device, train_loader, optimizer, train_losses, train_acc, 
 
 def test_loop(model, device, test_loader, test_losses, test_acc, use_amp):
     """
-    Test loop for one epoch
+    Test loop for one epoch with mixed precision option
     """
     model.eval()
     test_loss = 0
