@@ -109,6 +109,7 @@ uv pip install -U "huggingface_hub[cli]"
 uv pip install Pillow
 uv pip install matplotlib
 uv pip install albumentations
+uv pip install tensorboard
 
 # CUDA 12.8
 uv pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128

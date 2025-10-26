@@ -8,7 +8,7 @@ from model import ResNet50
 from train import train_loop, test_loop, get_lr_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
 from torch.cuda.amp import GradScaler
-
+from torch.utils.tensorboard import SummaryWriter
 
 
 def unzip_tiny_imagenet(zip_path, extract_to):
@@ -46,6 +46,7 @@ def main(data_path="./content/tiny-imagenet-200",
          resume_training=False,
          num_workers=8,
          use_amp=True,
+         experiment_name="MyTrainRun"
          ):
     """
     Main function to run the complete training pipeline
@@ -144,6 +145,9 @@ def main(data_path="./content/tiny-imagenet-200",
     # Create Scaler if mixed precision is true
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
 
+    # Tensorboard writer
+    writer = SummaryWriter(f'runs/{experiment_name}')  # or simply SummaryWriter()
+
     if resume_training and os.path.exists(best_weights_file):
         # Resume from best weights, or from last epoch?
         start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, best_weights_file, device, use_amp)
@@ -188,6 +192,22 @@ def main(data_path="./content/tiny-imagenet-200",
         print(f"Saving epoch weights: {epoch_weights_file}")
         save_checkpoint(model, optimizer, scaler, epoch, best_loss, test_losses[-1], epoch_weights_file, use_amp)
 
+        # Aggregate epoch metrics
+        train_loss_epoch = sum(train_losses[-len(train_loader):]) / len(train_loader)
+        train_acc_epoch = train_acc[-1]
+        val_loss_epoch = sum(test_losses[-len(val_loader):]) / len(val_loader)
+        val_acc_epoch = test_acc[-1]
+
+        # Log to Tensorboard
+        writer.add_scalar("Loss/train", train_loss_epoch, epoch)
+        writer.add_scalar("Accuracy/train", train_acc_epoch, epoch)
+        writer.add_scalar("Loss/val", val_loss_epoch, epoch)
+        writer.add_scalar("Accuracy/val", val_acc_epoch, epoch)
+
+        # Log learning rate
+        for i, param_group in enumerate(optimizer.param_groups):
+            writer.add_scalar(f"LR/group_{i}", param_group["lr"], epoch)
+
 
     # ====== Final Summary ======
     print("\n" + "="*70)
@@ -199,7 +219,9 @@ def main(data_path="./content/tiny-imagenet-200",
     print(f"  - Final Train Loss: {train_losses[-1]:.4f}")
     print(f"  - Final Val Loss: {test_losses[-1]:.4f}")
     print("="*70)
-    
+
+    writer.close()
+
     return model, train_losses, train_acc, test_losses, test_acc
 
 
@@ -251,4 +273,5 @@ if __name__ == "__main__":
         checkpoints_dir="./content/drive/MyDrive/checkpoints/resnet50",
         num_workers=8,
         use_amp=True,
+        # experiment_name=""
     )
