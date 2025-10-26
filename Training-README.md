@@ -55,7 +55,16 @@ sudo mount -a
    - Hugging Face cache: /Data/hf_cache
    - Dataset cache: /Data/datasets/cache
 3.**Download the dataset from Hugging Face**
-    Download script:
+    Download script:  
+```python
+from datasets import load_dataset
+dataset = load_dataset(
+    "ILSVRC/imagenet-1k",
+    split="train",
+    cache_dir="/Data/datasets_cache"  # 👈 forces download to EBS volume
+)
+```        
+
     - Estimated time: 
       - Data download: ~1 hour
       - Train/validation split generation: ~2 hours
@@ -144,6 +153,7 @@ source ~/.bashrc
 ### Instance Details
 - **AMI**: imagenet-train-ami
 - **Instance Type:** `g4dn.xlarge` to start with
+    g5.xlarge next
 - **Zone**: ap-south-1a (Same zone as the EBS volume containing the dataset, so that it can be attached)
 - Select Spot instance option
 
@@ -202,4 +212,5 @@ sudo mount -a
    source my-venv/bin/activate
    huggingface-cli login
 
+   python main.py | tee /Data/run1.log
 ```
