@@ -79,6 +79,7 @@ def main(data_path="./content/tiny-imagenet-200",
             print(f"✓ Dataset found at: {data_path}")
 
     # Create output folders if needed
+    checkpoints_dir = os.path.join(checkpoints_dir, experiment_name)
     if not os.path.exists(checkpoints_dir):
         os.makedirs(checkpoints_dir, exist_ok=True)
 
@@ -150,7 +151,7 @@ def main(data_path="./content/tiny-imagenet-200",
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
 
     # Tensorboard writer
-    writer = SummaryWriter(f'runs/{experiment_name}')  # or simply SummaryWriter()
+    writer = SummaryWriter(f'/Data/tf_runs/{experiment_name}')  # or simply SummaryWriter()
 
     if resume_training and os.path.exists(best_weights_file):
         # Resume from best weights, or from last epoch?
@@ -288,12 +289,12 @@ if __name__ == "__main__":
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=256,  # Increase if you have enough GPU memory
-        num_epochs=30,
+        batch_size=352,  # Increase if you have enough GPU memory
+        num_epochs=70,
         learning_rate=0.001,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
-        num_workers=6,
+        num_workers=4,
         use_amp=True,
         hf_dataset=True,
         experiment_name="Run1-basic"
