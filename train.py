@@ -79,7 +79,8 @@ def train_loop(model, device, train_loader, optimizer, scaler, train_losses, tra
             y_pred = model(data)
 
             # Calculate loss (divide by accumulation steps)
-            loss = F.nll_loss(y_pred, target) / accumulation_steps
+            #loss = F.nll_loss(y_pred, target) / accumulation_steps
+            loss = F.cross_entropy(y_pred, target) / accumulation_steps
 
         # Track unscaled loss (for logging)
         train_losses.append(loss.detach().item() * accumulation_steps)
@@ -118,7 +119,8 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
         for data, target in val_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            # val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            val_loss += F.cross_entropy(output, target).item() # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 

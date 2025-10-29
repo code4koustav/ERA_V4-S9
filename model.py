@@ -148,9 +148,9 @@ class ResNet(nn.Module):
         x = torch.flatten(x, 1)
         x = self.fc(x)
         
-        # Return log probabilities for NLL loss
-        return F.log_softmax(x, dim=1)
-
+        # Return without log probablities - using CrossEntropyLoss loss for mixed precision
+        # return F.log_softmax(x, dim=1)
+        return x  # raw logits (no log_softmax)
 
 def ResNet50(num_classes=1000, in_channels=3, use_maxpool=True):
     """
