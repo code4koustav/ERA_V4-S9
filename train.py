@@ -69,12 +69,15 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     processed = 0
     optimizer.zero_grad(set_to_none=True)
 
+    # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
     for batch_idx, (data, target) in enumerate(pbar):
         # get samples
         data, target = data.to(device), target.to(device)
 
         # Forward + loss under autocast
-        with autocast(dtype=torch.float16): # or bfloat16 on newer GPUs (e.g. A100, H100)
+        with autocast(dtype=dtype): # or bfloat16 on newer GPUs (e.g. A100, H100)
             # Predict
             y_pred = model(data)
 
@@ -117,8 +120,11 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
     model.eval()
     val_loss = 0
     correct = 0
-    # with torch.no_grad(), autocast(dtype=torch.float16):  # same precision context
-    with torch.no_grad(), autocast(enabled=use_amp):
+
+    # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
+    with torch.no_grad(), autocast(enabled=use_amp, dtype=dtype):
         for data, target in val_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
