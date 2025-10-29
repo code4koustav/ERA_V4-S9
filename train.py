@@ -5,8 +5,9 @@ from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 
 
-def get_sgd_optimizer():
-    pass
+def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
+    return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+
 
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
 
@@ -59,7 +60,8 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
     return start_epoch, best_loss
 
 
-def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, accumulation_steps=4):
+def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
+               accumulation_steps=4, use_amp=True):
     """
     Training loop for one epoch with gradient accumulation and mixed precision option
     """
@@ -74,10 +76,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
     for batch_idx, (data, target) in enumerate(pbar):
         # get samples
-        data, target = data.to(device), target.to(device)
+        data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
         # Forward + loss under autocast
-        with autocast(dtype=dtype): # or bfloat16 on newer GPUs (e.g. A100, H100)
+        with autocast(enabled=use_amp, dtype=dtype): # or bfloat16 on newer GPUs (e.g. A100, H100)
             # Predict
             y_pred = model(data)
 
@@ -92,7 +94,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         scaler.scale(loss).backward()
 
         # Update weights only after accumulation_steps
-        if (batch_idx + 1) % accumulation_steps == 0:
+        if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
             # Step optimizer through scaler
             scaler.step(optimizer)
             scaler.update()
@@ -125,8 +127,8 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 
     with torch.no_grad(), autocast(enabled=use_amp, dtype=dtype):
-        for data, target in val_loader:
-            data, target = data.to(device), target.to(device)
+        for data, target in tqdm(val_loader, desc="Validating", leave=False):
+            data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             output = model(data)
             # val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             val_loss += F.cross_entropy(output, target).item() # sum up batch loss

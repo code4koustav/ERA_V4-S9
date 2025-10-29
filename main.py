@@ -172,7 +172,7 @@ def main(data_path="./content/tiny-imagenet-200",
         # Training
         print("\n🔄 Training...")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-                                             accumulation_steps=accumulation_steps)
+                                             accumulation_steps=accumulation_steps, use_amp=use_amp)
         
         # Validation
         print("\n🔍 Validating...")
