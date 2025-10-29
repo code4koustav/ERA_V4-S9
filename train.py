@@ -63,10 +63,10 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                accumulation_steps=4, use_amp=True):
     """
-    Training loop for one epoch with gradient accumulation and mixed precision option
+    Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
     model.train()
-    pbar = tqdm(train_loader)
+    pbar = tqdm(train_loader, desc="Training", leave=False)
     correct = 0
     processed = 0
     optimizer.zero_grad(set_to_none=True)
@@ -107,10 +107,15 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         pred = y_pred.argmax(dim=1, keepdim=True)
         correct += pred.eq(target.view_as(pred)).sum().item()
         processed += len(data)
+        acc = 100.0 * correct / processed
+
+        # Fetch current LR
+        current_lr = optimizer.param_groups[0]["lr"]
 
         pbar.set_description(
-            desc=f'Loss={loss.item() * accumulation_steps} Batch_id={batch_idx} Accuracy={100 * correct / processed:0.2f}')
-        train_acc.append(100 * correct / processed)
+            desc=f'Loss={loss.item() * accumulation_steps:0.4f} | Batch_id={batch_idx} | '
+                 f'Accuracy={acc:0.2f} | LR={current_lr:.6f}')
+        train_acc.append(acc)
 
     return train_losses, train_acc
 
