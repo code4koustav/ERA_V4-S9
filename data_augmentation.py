@@ -101,7 +101,8 @@ class AlbumentationsImageDataset(Dataset):
 
     def __getitem__(self, idx):
         image, label = self.dataset[idx]
-        image = np.array(image)  # Convert PIL -> NumPy
+        # image = np.array(image)  # Convert PIL -> NumPy
+        image = np.array(image, dtype=np.uint8)
         if self.transform:
             image = self.transform(image=image)["image"]
         return image, label
@@ -130,7 +131,8 @@ class HFDatasetWrapper(Dataset):
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        image = np.array(image) # PIL -> NumPy
+        # image = np.array(image) # PIL -> NumPy
+        image = np.array(image, dtype=np.uint8)
         label = sample["label"]
 
         # print("Type:", type(image), "Shape:", getattr(image, "shape", None))

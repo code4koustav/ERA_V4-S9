@@ -127,7 +127,10 @@ def main(data_path="./content/tiny-imagenet-200",
                          weight_decay=5e-4)
 
     # Learning Rate Strategy: OneCycleLR
-    steps_per_epoch = len(train_loader)
+    # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
+    # effectively making the model step fewer times. So LR schedule runs too fast relative to optimization steps and needs to be handled
+    accumulation_steps = 4
+    steps_per_epoch = len(train_loader) // accumulation_steps
     scheduler = get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate)
     
     print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay=5e-4)")
@@ -168,10 +171,8 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
-        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scaler, train_losses, train_acc,
-                                             accumulation_steps=4)
-        # Step the scheduler after each batch (OneCycleLR steps per batch)
-        scheduler.step()
+        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
+                                             accumulation_steps=accumulation_steps, use_amp=use_amp)
         
         # Validation
         print("\n🔍 Validating...")
