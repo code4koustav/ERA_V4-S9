@@ -45,7 +45,7 @@ def save_checkpoint(model, optimizer, scaler, epoch, best_loss, epoch_val_loss, 
 
 
 def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
-    checkpoint = torch.load(path, map_location=device, weights_only=True)
+    checkpoint = torch.load(path, map_location=device)
     model.load_state_dict(checkpoint["model_state"])
     optimizer.load_state_dict(checkpoint["optimizer_state"])
     best_loss = checkpoint['best_val_loss']
