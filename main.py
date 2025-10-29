@@ -168,10 +168,8 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
-        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scaler, train_losses, train_acc,
+        train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              accumulation_steps=4)
-        # Step the scheduler after each batch (OneCycleLR steps per batch)
-        scheduler.step()
         
         # Validation
         print("\n🔍 Validating...")

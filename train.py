@@ -59,7 +59,7 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
     return start_epoch, best_loss
 
 
-def train_loop(model, device, train_loader, optimizer, scaler, train_losses, train_acc, accumulation_steps=4):
+def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, accumulation_steps=4):
     """
     Training loop for one epoch with gradient accumulation and mixed precision option
     """
@@ -94,6 +94,9 @@ def train_loop(model, device, train_loader, optimizer, scaler, train_losses, tra
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
+
+            # Step the scheduler after each batch (OneCycleLR steps per batch)
+            scheduler.step()
 
         # Update pbar-tqdm
         pred = y_pred.argmax(dim=1, keepdim=True)
