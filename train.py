@@ -65,7 +65,7 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
     return start_epoch, best_loss
 
 
-def print_diagnostics(model, scaler, batch_idx, use_amp):
+def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     total_norm = 0.0
     max_norm = 0.0
     count = 0
@@ -85,7 +85,7 @@ def print_diagnostics(model, scaler, batch_idx, use_amp):
             print(f"{name:<40s} grad=None")
 
     total_norm = total_norm ** 0.5
-    print(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
+    pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
     if use_amp:
         print(f"[Grad Debug] GradScaler scale={scaler.get_scale()}")
 
@@ -111,13 +111,14 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # 🧠 Check input stats for zero / NaN inputs. Expected: mean ≈ 0, std ≈ 1, min/max roughly around -2.1 and +2.6
         if batch_idx == 0:  # print for only first batch to avoid spam
-            print(f"[Debug] Input mean={data.mean().item():.4f}, std={data.std().item():.4f}, "
+            pbar.write(f"[Debug] Input mean={data.mean().item():.4f}, std={data.std().item():.4f}, "
                   f"min={data.min().item():.4f}, max={data.max().item():.4f}")
-            print(f"[Debug] Device check: model={next(model.parameters()).device}, data={data.device}")
+            pbar.write(f"[Debug] Device check: model={next(model.parameters()).device}, data={data.device}")
+            pbar.write(f"[Debug] Batch shape: {tuple(data.shape)}")
+            pbar.write(f"[Debug] Label range: {target.min().item()}–{target.max().item()}")
 
         # Forward + loss under autocast
         with autocast(enabled=use_amp, dtype=dtype):
-            # Predict
             y_pred = model(data)
 
             # Calculate loss (divide by accumulation steps)
@@ -129,22 +130,26 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Scale the loss and perform backward pass
         scaler.scale(loss).backward()
 
-        print_diagnostics(model)
-
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
-            print(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
+            pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
             global_step += 1
 
             # 🧩 2️⃣ Gradient norm diagnostic every N steps
             if (batch_idx // accumulation_steps) % debug_every == 0:
-                print_diagnostics(model, scaler, batch_idx, use_amp)
+                print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
 
             # Add gradient clipping to prevent instability in the first few thousand steps:
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
 
             # Step optimizer through scaler
             scaler.step(optimizer)
+
+            if not scaler.get_scale() > 1:
+                pbar.write(f"[Warning] GradScaler scale dropped below 1 — possible inf/NaN gradients.")
+
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))

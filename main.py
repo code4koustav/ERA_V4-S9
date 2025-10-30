@@ -140,7 +140,7 @@ def main(data_path="./content/tiny-imagenet-200",
 
     # --- Diagnostic: check warmup length ---
     total_steps = getattr(scheduler, "total_steps", num_epochs * steps_per_epoch)
-    pct_start = getattr(scheduler, "pct_start", 0.3)  # default to your chosen warmup %
+    pct_start = getattr(scheduler, "pct_start", 0.08)  # default to your chosen warmup %
     warmup_steps = int(total_steps * pct_start)
     print(f"Total steps: {total_steps:,}, Warmup steps: {warmup_steps:,} ({pct_start*100:.1f}% of training)")
 
