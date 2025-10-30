@@ -138,6 +138,11 @@ def main(data_path="./content/tiny-imagenet-200",
     print(f"  - Max LR: {learning_rate}")
     print(f"  - Total steps: {steps_per_epoch * num_epochs}")
 
+    # --- Diagnostic: check warmup length ---
+    total_steps = scheduler.total_steps if hasattr(scheduler, "total_steps") else num_epochs * (len(train_loader) // accumulation_steps)
+    warmup_steps = int(total_steps * scheduler.pct_start)
+    print(f"Total steps: {total_steps:,}, Warmup steps: {warmup_steps:,}  ({scheduler.pct_start * 100:.1f}% of training)")
+
     # ====== STEP 6: Training Loop ======
     print(f"\n[STEP 6/6] Starting training...")
     print("="*70)

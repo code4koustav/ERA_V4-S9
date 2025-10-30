@@ -19,7 +19,8 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
         # total_steps=total_steps, #provide either total_steps or (epochs and steps_per_epoch)
         epochs=num_epochs,
         steps_per_epoch=steps_per_epoch,
-        pct_start=0.3,  # 30% of training for warmup
+        # pct_start=0.3,  # 30% of training for warmup
+        pct_start=0.08, # reach peak LR by 8% of total steps
         anneal_strategy='cos',
         # div_factor=10.0,  # initial_lr = max_lr/10
         # final_div_factor=100.0  # min_lr = max_lr/100
@@ -73,6 +74,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     pbar = tqdm(train_loader, desc="Training", leave=False)
     correct = 0
     processed = 0
+    global_step = 0
     optimizer.zero_grad(set_to_none=True)
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
@@ -98,11 +100,23 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
+            print(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
+            global_step += 1
+
             # Add gradient clipping to prevent instability in the first few thousand steps:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
             # Step optimizer through scaler
             scaler.step(optimizer)
+
+            # Print Gradient norm for debugging. If grad norm ≈ 0 for many updates, learning is not happening. If inf/nan, there's numerical instability.
+            total_norm = 0.0
+            for p in model.parameters():
+                if p.grad is not None:
+                    total_norm += float(p.grad.data.norm(2).item() ** 2)
+            total_norm = total_norm ** 0.5
+            print("grad norm", total_norm)
+
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
