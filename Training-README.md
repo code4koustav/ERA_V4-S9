@@ -212,5 +212,13 @@ sudo mount -a
    source my-venv/bin/activate
    huggingface-cli login
 
-   python main.py | tee /Data/run1.log
+   python main.py | tee /Data/run0.log
 ```
+
+- Run tensorboard
+```commandline
+screen -S tf
+source my-venv/bin/activate
+tensorboard --logdir=/Data/tf_runs --host=0.0.0.0 --port=6006
+```
+Open port 6006 from inbound rules
