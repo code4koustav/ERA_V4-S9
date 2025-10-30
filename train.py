@@ -66,9 +66,12 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
 
 
 def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
+    """
+    Prints gradient norms and AMP scaler diagnostics (if enabled).
+    """
     total_norm = 0.0
     max_norm = 0.0
-    count = 0
+    grad_none_count = 0
 
     #Print Gradient norm for debugging. If grad norm ≈ 0 for many updates, learning is not happening.
     # If inf/nan, there's numerical instability.
@@ -82,13 +85,18 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
             # if count <= 10:  # limit printout
             #     print(f"{name:<40s} grad_norm={grad_norm:.6e}")
         else:
-            print(f"{name:<40s} grad=None")
+            grad_none_count += 1
+            # Only print first few missing grads to avoid spam
+            if grad_none_count <= 5:
+                print(f"{name:<40s} grad=None")
 
     total_norm = total_norm ** 0.5
     pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
-    if use_amp:
-        print(f"[Grad Debug] GradScaler scale={scaler.get_scale()}")
-
+    if use_amp and scaler is not None:
+        scale_val = scaler.get_scale()
+        pbar.write(f"[Grad Debug] GradScaler scale={scale_val:.1f}")
+    # else:
+    #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
 
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                accumulation_steps=4, use_amp=True, debug_every=200):
@@ -127,8 +135,11 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Track unscaled loss (for logging)
         train_losses.append(loss.detach().item() * accumulation_steps)
 
-        # Scale the loss and perform backward pass
-        scaler.scale(loss).backward()
+        # ✅ Backward pass (AMP vs non-AMP)
+        if use_amp: # scale the loss
+            scaler.scale(loss).backward()
+        else:
+            loss.backward()
 
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
@@ -139,18 +150,22 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             if (batch_idx // accumulation_steps) % debug_every == 0:
                 print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
 
-            # Add gradient clipping to prevent instability in the first few thousand steps:
-            scaler.unscale_(optimizer)
+            # Add gradient clipping to prevent instability in the first few thousand steps
+            if use_amp:
+                scaler.unscale_(optimizer)
             total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
 
-            # Step optimizer through scaler
-            scaler.step(optimizer)
+            # ✅ Optimizer step (AMP vs non-AMP)
+            if use_amp:
+                scaler.step(optimizer) # Step optimizer through scaler
+                scaler.update()
+                scale_val = scaler.get_scale()
+                if scale_val < 1:
+                    pbar.write(f"[Warning] GradScaler scale dropped below 1 — possible inf/NaN gradients.")
+            else:
+                optimizer.step()
 
-            if not scaler.get_scale() > 1:
-                pbar.write(f"[Warning] GradScaler scale dropped below 1 — possible inf/NaN gradients.")
-
-            scaler.update()
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
             scheduler.step()
