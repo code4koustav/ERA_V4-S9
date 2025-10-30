@@ -38,7 +38,7 @@ def get_train_transform():
 
         # Randomly blur the image to simulate out-of-focus or motion blur
         # blur_limit=(3, 5): kernel size between 3x3 and 5x5
-        A.GaussianBlur(blur_limit=(3, 5), sigma_limit=0, p=0.3),
+        A.GaussianBlur(blur_limit=(3, 5), sigma_limit=(0.1, 2.0), p=0.3),
 
         # CoarseDropout (a.k.a Random Erasing or Cutout)
         # Randomly removes rectangular patches from the image to make model robust
