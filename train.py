@@ -11,19 +11,23 @@ def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
 
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
 
-    total_steps = steps_per_epoch * num_epochs
+    # total_steps = steps_per_epoch * num_epochs
 
     scheduler = OneCycleLR(
         optimizer,
         max_lr=learning_rate,
-        total_steps=total_steps,
+        # total_steps=total_steps, #provide either total_steps or (epochs and steps_per_epoch)
         epochs=num_epochs,
         steps_per_epoch=steps_per_epoch,
         pct_start=0.3,  # 30% of training for warmup
         anneal_strategy='cos',
-        div_factor=10.0,  # initial_lr = max_lr/10
-        final_div_factor=100.0  # min_lr = max_lr/100
+        # div_factor=10.0,  # initial_lr = max_lr/10
+        # final_div_factor=100.0  # min_lr = max_lr/100
+        div_factor=25,  # start_lr = 0.2 / 25 = 0.008
+        final_div_factor=1e4  # end_lr = 0.2 / 10_000 = 2e-5
     )
+    #Should print ~0.008 (for div_factor=25).
+    print("Initial LR:", optimizer.param_groups[0]['lr'])
     return scheduler
 
 
@@ -73,18 +77,17 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    current_lr = optimizer.param_groups[0]["lr"]
 
     for batch_idx, (data, target) in enumerate(pbar):
-        # get samples
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
         # Forward + loss under autocast
-        with autocast(enabled=use_amp, dtype=dtype): # or bfloat16 on newer GPUs (e.g. A100, H100)
+        with autocast(enabled=use_amp, dtype=dtype):
             # Predict
             y_pred = model(data)
 
             # Calculate loss (divide by accumulation steps)
-            #loss = F.nll_loss(y_pred, target) / accumulation_steps
             loss = F.cross_entropy(y_pred, target) / accumulation_steps
 
         # Track unscaled loss (for logging)
@@ -93,39 +96,38 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Scale the loss and perform backward pass
         scaler.scale(loss).backward()
 
-        # Update weights only after accumulation_steps
+        # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
             # Step optimizer through scaler
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
-
-            # Step the scheduler after each batch (OneCycleLR steps per batch)
+            # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
             scheduler.step()
+            current_lr = optimizer.param_groups[0]["lr"]
 
-        # Update pbar-tqdm
-        pred = y_pred.argmax(dim=1, keepdim=True)
-        correct += pred.eq(target.view_as(pred)).sum().item()
+        # Accuracy
+        pred = y_pred.argmax(dim=1)
+        correct += pred.eq(target).sum().item()
         processed += len(data)
         acc = 100.0 * correct / processed
-
-        # Fetch current LR
-        current_lr = optimizer.param_groups[0]["lr"]
-
-        pbar.set_description(
-            desc=f'Loss={loss.item() * accumulation_steps:0.4f} | Batch_id={batch_idx} | '
-                 f'Accuracy={acc:0.2f} | LR={current_lr:.6f}')
         train_acc.append(acc)
+
+        # Update tqdm
+        pbar.set_description(
+            f"Loss={loss.item() * accumulation_steps:.4f} | "
+            f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f}"
+        )
 
     return train_losses, train_acc
 
 
 def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
     """
-    Val loop for one epoch with mixed precision option
+    Validation loop for one epoch with mixed precision.
     """
     model.eval()
-    val_loss = 0
+    val_loss = 0.0
     correct = 0
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
@@ -135,18 +137,17 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
         for data, target in tqdm(val_loader, desc="Validating", leave=False):
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             output = model(data)
-            # val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
-            val_loss += F.cross_entropy(output, target).item() # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
+            val_loss += F.cross_entropy(output, target, reduction='sum').item()
+            pred = output.argmax(dim=1)
+            correct += pred.eq(target).sum().item()
 
-    val_loss /= len(val_loader.dataset)
+    val_loss /= len(val_loader.dataset)  # per-sample average loss
+    acc = 100.0 * correct / len(val_loader.dataset)
+
     val_losses.append(val_loss)
+    val_acc.append(acc)
 
-    print('\nVal set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        val_loss, correct, len(val_loader.dataset),
-        100. * correct / len(val_loader.dataset)))
-
-    val_acc.append(100. * correct / len(val_loader.dataset))
+    print(f"\nVal set: Avg loss: {val_loss:.4f}, "
+          f"Accuracy: {correct}/{len(val_loader.dataset)} ({acc:.2f}%)\n")
 
     return val_losses, val_acc
