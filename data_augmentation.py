@@ -44,15 +44,11 @@ def get_train_transform():
         # Randomly removes rectangular patches from the image to make model robust
         # Encourages learning from surrounding context rather than specific pixels
         A.CoarseDropout(
-            max_holes=1,
-            max_height=32,
-            max_width=32,
-            min_holes=1,
-            min_height=16,
-            min_width=16,
-            fill_value=(0, 0, 0),  # tuple for RGB
-            mask_fill_value=None,
-            p=0.5
+            num_holes_range=(1, 1),
+            hole_height_range=(16, 32),
+            hole_width_range=(16, 32),
+            fill=(0, 0, 0),
+            fill_mask=None
         ),
 
         # Normalize using ImageNet mean and std
