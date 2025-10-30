@@ -67,20 +67,33 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
 
 def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     """
-    Prints gradient norms and AMP scaler diagnostics (if enabled).
+    Print gradient diagnostics:
+      - Total & max grad norms
+      - NaN / Inf / Zero gradient checks
+      - GradScaler info (if AMP enabled)
     """
-    total_norm = 0.0
+    total_norm_sq = 0.0
     max_norm = 0.0
     grad_none_count = 0
+    nan_layers, inf_layers, zero_layers = [], [], []
 
     #Print Gradient norm for debugging. If grad norm ≈ 0 for many updates, learning is not happening.
     # If inf/nan, there's numerical instability.
     print("\n=== Gradient norms per layer (first few layers) ===")
     for name, p in model.named_parameters():
         if p.grad is not None:
-            grad_norm = p.grad.data.norm(2).item()
-            total_norm += grad_norm ** 2
+            grad_data = p.grad.data
+            grad_norm = grad_data.norm(2).item()
+            total_norm_sq += grad_norm ** 2
             max_norm = max(max_norm, grad_norm)
+
+            # Detect anomalies
+            if torch.isnan(grad_data).any():
+                nan_layers.append(name)
+            elif torch.isinf(grad_data).any():
+                inf_layers.append(name)
+            elif torch.allclose(grad_data, torch.zeros_like(grad_data)):
+                zero_layers.append(name)
             # count += 1
             # if count <= 10:  # limit printout
             #     print(f"{name:<40s} grad_norm={grad_norm:.6e}")
@@ -90,8 +103,21 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
             if grad_none_count <= 5:
                 print(f"{name:<40s} grad=None")
 
-    total_norm = total_norm ** 0.5
+    total_norm = total_norm_sq ** 0.5
     pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
+
+    # Print anomalies (if any)
+    if nan_layers:
+        pbar.write(f"[Warning] NaN gradients in: {', '.join(nan_layers[:5])}{'...' if len(nan_layers) > 5 else ''}")
+    if inf_layers:
+        pbar.write(f"[Warning] Inf gradients in: {', '.join(inf_layers[:5])}{'...' if len(inf_layers) > 5 else ''}")
+    if zero_layers:
+        pbar.write(f"[Info] Zero gradients in: {', '.join(zero_layers[:5])}{'...' if len(zero_layers) > 5 else ''}")
+
+    if not (nan_layers or inf_layers or zero_layers):
+        pbar.write("[Grad Debug] No NaN/Inf/Zero gradients detected ✅")
+
+    # AMP / GradScaler info
     if use_amp and scaler is not None:
         scale_val = scaler.get_scale()
         pbar.write(f"[Grad Debug] GradScaler scale={scale_val:.1f}")
