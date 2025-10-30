@@ -85,7 +85,7 @@ def main(data_path="./content/tiny-imagenet-200",
 
     # ====== STEP 2: Load Data ======
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
-    print(f"  - Batch size: {batch_size}")
+    print(f"  - Batch size: {batch_size}, num_workers: {num_workers}")
     # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, val_transform=True)
     train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, val_transform=True, num_workers=num_workers)
     print(f"✓ Train loader: {len(train_loader.dataset)} images, {len(train_loader)} batches")
@@ -137,7 +137,7 @@ def main(data_path="./content/tiny-imagenet-200",
     print(f"✓ LR Scheduler: OneCycleLR")
     print(f"  - Max LR: {learning_rate}")
     print(f"  - Total steps: {steps_per_epoch * num_epochs}")
-    
+
     # ====== STEP 6: Training Loop ======
     print(f"\n[STEP 6/6] Starting training...")
     print("="*70)
@@ -257,20 +257,12 @@ if __name__ == "__main__":
         print(f"Allocated memory: {torch.cuda.memory_allocated() / 1e9:.1f} GB")
         print(f"Reserved memory: {torch.cuda.memory_reserved() / 1e9:.1f} GB")    
 
+    # For Onecycle Policy:
+    # base_lr ≈ 0.1 * (batch_size / 256)
 
     # Configuration for Colab testing
     # Adjust these parameters based on your needs
-    
-    # For local testing (Windows path)
-    # model, *metrics = main(
-    #     data_path="./tiny-imagenet-200",
-    #     zip_path="./content/tiny-imagenet.zip",
-    #     batch_size=64,
-    #     num_epochs=2,
-    #     learning_rate=0.1,
-    #     inspect_data=False
-    # )
-    
+
     # # For Colab testing (mounted Google Drive)
     # model, *metrics = main(
     #     data_path="./content/tiny-imagenet-200",
@@ -286,17 +278,18 @@ if __name__ == "__main__":
     #     # experiment_name=""
     # )
 
-    # For g4dn.xlarge
+    # For g5.2xlarge. Fresh run after fixes
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=352,  # Increase if you have enough GPU memory
-        num_epochs=70,
-        learning_rate=0.001,
+        batch_size=352, #368,#384 # Increase if you have enough GPU memory
+        num_epochs=90,
+        learning_rate=0.1,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
-        num_workers=4,
+        num_workers=16,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run1-basic"
+        experiment_name="Run3-lr-fixes",
+        resume_training=False,
     )
