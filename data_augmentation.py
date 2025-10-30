@@ -139,10 +139,10 @@ class HFDatasetWrapper(Dataset):
         if self.transform:
             image = self.transform(image=image)["image"]
 
-        # Ensure it's a torch.Tensor
-        if not torch.is_tensor(image):
-            # image = torch.from_numpy(image).permute(2, 0, 1)
-            image = torch.tensor(image)
-        image = image.contiguous()
+        # # Ensure it's a torch.Tensor
+        # if not torch.is_tensor(image):
+        #     # image = torch.from_numpy(image).permute(2, 0, 1)
+        #     image = torch.tensor(image)
+        # image = image.contiguous()
 
         return image, torch.tensor(label)
