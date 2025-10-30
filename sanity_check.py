@@ -36,7 +36,7 @@ def one_batch_sanity_check(model, train_loader, device):
     print("cross_entropy:", ce, "   nll_loss_on_logits:", nll_try)
 
     #If the mean or max are huge (≫10), model’s initialization or last layer scaling may need tuning
-    print(outputs.abs().mean(), outputs.abs().max())
+    print("Mean:", outputs.abs().mean(), "Max", outputs.abs().max())
 
 
 def batch_data_check(train_loader):
@@ -168,6 +168,21 @@ def check_batch_sanity(batch_size, num_workers, model=None, train_loader=None):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = ResNet50(num_classes=1000, use_maxpool=True)
         model = model.to(device)
+
+    # Check scale of data
+    for data, target in train_loader:
+        print(f"Checking if data is normalized correctly: Should be within -2 and 2")
+        print(data.min().item(), data.max().item(), data.mean().item())
+        break
+
+    # # Chech model initialization mismatch
+    # for name, param in model.named_parameters():
+    #     if "fc" in name:
+    #         print(name, param.abs().mean().item())
+
+    # Check final layer scale
+    print(f"Checking the range of values in the final layer")
+    print(model.fc.weight.abs().mean().item())
 
     print(f"\n\n=== 1. Confirm model outputs and loss usage")
     one_batch_sanity_check(model, train_loader, device)
