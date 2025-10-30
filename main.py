@@ -284,18 +284,35 @@ if __name__ == "__main__":
     #     # experiment_name=""
     # )
 
+    # # For g5.2xlarge. Fresh run after fixes -- with aMP
+    # model, *metrics = main(
+    #     data_path="",
+    #     zip_path="",
+    #     batch_size=352, #368,#384 # Increase if you have enough GPU memory
+    #     num_epochs=90,
+    #     learning_rate=0.1,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="/Data/checkpoints",
+    #     num_workers=16,
+    #     use_amp=True,
+    #     hf_dataset=True,
+    #     experiment_name="Run3-lr-fixes",
+    #     resume_training=False,
+    # )
+
+    # Without AMP - smaller batch size, change lr
     # For g5.2xlarge. Fresh run after fixes
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=352, #368,#384 # Increase if you have enough GPU memory
+        batch_size=176, #352, #368,#384 # Increase if you have enough GPU memory
         num_epochs=90,
-        learning_rate=0.1,
+        learning_rate=0.05,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=16,
-        use_amp=True,
+        use_amp=False,
         hf_dataset=True,
         experiment_name="Run3-lr-fixes",
-        resume_training=False,
+        resume_training=True,
     )

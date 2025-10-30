@@ -20,7 +20,7 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
         epochs=num_epochs,
         steps_per_epoch=steps_per_epoch,
         # pct_start=0.3,  # 30% of training for warmup
-        pct_start=0.08, # reach peak LR by 8% of total steps
+        pct_start=0.25, # reach peak LR by 25% of total steps
         anneal_strategy='cos',
         # div_factor=10.0,  # initial_lr = max_lr/10
         # final_div_factor=100.0  # min_lr = max_lr/100
@@ -141,7 +141,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
             # Add gradient clipping to prevent instability in the first few thousand steps:
             scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
 
             # Step optimizer through scaler
