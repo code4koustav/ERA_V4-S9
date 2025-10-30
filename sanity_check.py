@@ -35,6 +35,9 @@ def one_batch_sanity_check(model, train_loader, device):
         nll_try = f"error: {e}"
     print("cross_entropy:", ce, "   nll_loss_on_logits:", nll_try)
 
+    #If the mean or max are huge (≫10), model’s initialization or last layer scaling may need tuning
+    print(outputs.abs().mean(), outputs.abs().max())
+
 
 def batch_data_check(train_loader):
     # Check small category distribution
@@ -73,9 +76,6 @@ def check_lr_scheduler(model, train_loader, epochs, max_lr):
     accumulation_steps = 4
     steps_per_epoch = len(train_loader)
     effective_steps_per_epoch = steps_per_epoch // accumulation_steps
-
-    # total_steps = steps_per_epoch * num_epochs
-
     optimizer = torch.optim.SGD(model.parameters(), lr=max_lr, momentum=0.9)
 
     # Define OneCycleLR scheduler
@@ -85,7 +85,7 @@ def check_lr_scheduler(model, train_loader, epochs, max_lr):
         epochs=epochs,
         steps_per_epoch=effective_steps_per_epoch,
         pct_start=0.3,
-        div_factor=10, #25,
+        div_factor=25, #25,
         final_div_factor=1e4,
         anneal_strategy='cos'
     )
