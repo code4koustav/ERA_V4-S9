@@ -98,6 +98,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
+            # Add gradient clipping to prevent instability in the first few thousand steps:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
             # Step optimizer through scaler
             scaler.step(optimizer)
             scaler.update()
