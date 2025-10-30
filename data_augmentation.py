@@ -50,7 +50,8 @@ def get_train_transform():
             min_holes=1,
             min_height=16,
             min_width=16,
-            fill_value=0,
+            fill_value=(0, 0, 0),  # tuple for RGB
+            mask_fill_value=None,
             p=0.5
         ),
 
