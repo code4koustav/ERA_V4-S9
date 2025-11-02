@@ -122,6 +122,7 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     # else:
     #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
 
+
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                accumulation_steps=4, use_amp=True, debug_every=200):
     """
@@ -158,8 +159,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Forward + loss under autocast
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
-            # Calculate loss (divide by accumulation steps)
-            # loss = F.cross_entropy(y_pred, target, label_smoothing=0.1) / accumulation_steps
+            # ✅Compute smoothed loss for both targets (MixUp / CutMix)
             loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=0.1) \
                    + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=0.1)
             loss = loss / accumulation_steps
@@ -180,14 +180,19 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             global_step += 1
 
             # 🧩 2️⃣ Gradient norm diagnostic every N steps
-            if (batch_idx // accumulation_steps) % debug_every == 0:
+            if batch_idx % debug_every == 0:
                 print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
+                pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
+                           f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
 
-            # Add gradient clipping to prevent instability in the first few thousand steps
             if use_amp:
                 scaler.unscale_(optimizer)
+
+            # Add gradient clipping to prevent instability in the first few thousand steps.
+            # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
             total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
+            if batch_idx % debug_every == 0:
+                pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
 
             # ✅ Optimizer step (AMP vs non-AMP)
             if use_amp:
