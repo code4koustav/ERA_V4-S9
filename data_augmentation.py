@@ -20,6 +20,13 @@ def get_train_transform():
         # Helps model generalize for left/right symmetry in objects (e.g., animals, vehicles)
         A.HorizontalFlip(p=0.5),
 
+        A.ShiftScaleRotate(shift_limit=0.0625,  # ~6% translation
+            scale_limit=0.1,  # zoom in/out up to ±10%
+            rotate_limit=15,  # rotate ±15°
+            border_mode=0,  # reflect padding
+            p=0.5
+        ),
+
         # Randomly apply either ColorJitter or HueSaturationValue (not both)
         # Mimics lighting, color tone, and saturation variations
         A.OneOf([
@@ -27,6 +34,7 @@ def get_train_transform():
             A.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1),
             # Randomly shift hue, saturation, and value in HSV space
             A.HueSaturationValue(hue_shift_limit=15, sat_shift_limit=20, val_shift_limit=15),
+            A.RandomBrightnessContrast(brightness_limit=0.4, contrast_limit=0.4),
         ], p=0.8),  # 80% chance to apply one of the color transformations
 
         # Randomly convert image to grayscale with 20% chance
