@@ -313,6 +313,6 @@ if __name__ == "__main__":
         num_workers=16,
         use_amp=False,
         hf_dataset=True,
-        experiment_name="Run3-lr-fixes",
-        resume_training=True,
+        experiment_name="Run4-lr-fixes",
+        resume_training=False,
     )
