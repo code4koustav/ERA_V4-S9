@@ -49,7 +49,8 @@ def main(data_path="./content/tiny-imagenet-200",
          num_workers=8,
          use_amp=True,
          hf_dataset=True,
-         experiment_name="MyTrainRun"
+         experiment_name="MyTrainRun",
+         resume_weighs_file="best.pth"
          ):
     """
     Main function to run the complete training pipeline
@@ -154,7 +155,7 @@ def main(data_path="./content/tiny-imagenet-200",
     val_losses = []
     val_acc = []
     best_loss = float('inf')
-    best_weights_file = os.path.join(checkpoints_dir, 'best.pth')
+    best_weights_file = os.path.join(checkpoints_dir, resume_weighs_file)
 
     # Create Scaler if mixed precision is true
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
@@ -307,19 +308,38 @@ if __name__ == "__main__":
     #     resume_training=False,
     # )
 
-    # Without AMP - smaller batch size, change lr
-    # For g5.2xlarge. Fresh run after fixes
+    # # Without AMP - smaller batch size, change lr
+    # # For g5.2xlarge. Fresh run after fixes
+    # model, *metrics = main(
+    #     data_path="",
+    #     zip_path="",
+    #     batch_size=176, #352, #368,#384 # Increase if you have enough GPU memory
+    #     num_epochs=90,
+    #     learning_rate=0.05,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="/Data/checkpoints",
+    #     num_workers=16,
+    #     use_amp=False,
+    #     hf_dataset=True,
+    #     experiment_name="Run4-lr-fixes",
+    #     resume_training=False,
+    # )
+
+
+    # For g5.2xlarge. Resuming previous run from epoch67 -- with aMP
+    # Keep LR and scheduler params same, batch size can be changed
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=176, #352, #368,#384 # Increase if you have enough GPU memory
+        batch_size=352, #368,#384 # Increase if you have enough GPU memory
         num_epochs=90,
         learning_rate=0.05,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=16,
-        use_amp=False,
+        use_amp=True,
         hf_dataset=True,
-        experiment_name="Run4-lr-fixes",
-        resume_training=False,
+        experiment_name="Run5-amp-epoch67",
+        resume_training=True,
+        resume_weights_file="run4-nonAMP_epoch66.pth"
     )
