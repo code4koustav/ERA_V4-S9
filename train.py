@@ -10,9 +10,6 @@ def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
 
 
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
-
-    # total_steps = steps_per_epoch * num_epochs
-
     scheduler = OneCycleLR(
         optimizer,
         max_lr=learning_rate,
@@ -154,9 +151,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Forward + loss under autocast
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
-
             # Calculate loss (divide by accumulation steps)
-            loss = F.cross_entropy(y_pred, target) / accumulation_steps
+            loss = F.cross_entropy(y_pred, target, label_smoothing=0.1) / accumulation_steps
 
         # Track unscaled loss (for logging)
         train_losses.append(loss.detach().item() * accumulation_steps)
@@ -228,7 +224,7 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
         for data, target in tqdm(val_loader, desc="Validating", leave=False):
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             output = model(data)
-            val_loss += F.cross_entropy(output, target, reduction='sum').item()
+            val_loss += F.cross_entropy(output, target, reduction='sum', label_smoothing=0.1).item()
             pred = output.argmax(dim=1)
             correct += pred.eq(target).sum().item()
 
