@@ -50,7 +50,7 @@ def main(data_path="./content/tiny-imagenet-200",
          use_amp=True,
          hf_dataset=True,
          experiment_name="MyTrainRun",
-         resume_weighs_file="best.pth"
+         resume_weights_file="best.pth"
          ):
     """
     Main function to run the complete training pipeline
@@ -155,7 +155,7 @@ def main(data_path="./content/tiny-imagenet-200",
     val_losses = []
     val_acc = []
     best_loss = float('inf')
-    best_weights_file = os.path.join(checkpoints_dir, resume_weighs_file)
+    best_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
 
     # Create Scaler if mixed precision is true
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
