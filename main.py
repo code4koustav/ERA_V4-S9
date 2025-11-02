@@ -165,6 +165,13 @@ def main(data_path="./content/tiny-imagenet-200",
     if resume_training and os.path.exists(best_weights_file):
         # Resume from best weights, or from last epoch?
         start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, best_weights_file, device, use_amp)
+
+        # Fast-forward scheduler so it resumes from the correct LR step
+        completed_steps = start_epoch * steps_per_epoch
+        for _ in range(completed_steps):
+            scheduler.step()
+        print(f"[Resume] Scheduler fast-forwarded to epoch {start_epoch}, step {completed_steps}.")
+        print(f"[Resume] Current LR = {optimizer.param_groups[0]['lr']:.6f}")
     else:
         start_epoch = 1
 
