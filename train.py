@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
+from data_augmentation import mixup_cutmix_data
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
@@ -140,6 +141,12 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
+        # Apply MixUp or CutMix
+        data, targets_a, targets_b, lam = mixup_cutmix_data(
+            data, target, alpha=0.2, cutmix_prob=0.5,
+            use_cutmix=True, use_mixup=True
+        )
+
         # 🧠 Check input stats for zero / NaN inputs. Expected: mean ≈ 0, std ≈ 1, min/max roughly around -2.1 and +2.6
         if batch_idx == 0:  # print for only first batch to avoid spam
             pbar.write(f"[Debug] Input mean={data.mean().item():.4f}, std={data.std().item():.4f}, "
@@ -152,7 +159,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
             # Calculate loss (divide by accumulation steps)
-            loss = F.cross_entropy(y_pred, target, label_smoothing=0.1) / accumulation_steps
+            # loss = F.cross_entropy(y_pred, target, label_smoothing=0.1) / accumulation_steps
+            loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=0.1) \
+                   + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=0.1)
+            loss = loss / accumulation_steps
 
         # Track unscaled loss (for logging)
         train_losses.append(loss.detach().item() * accumulation_steps)
@@ -165,7 +175,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
-            pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
+            if batch_idx < 20: #log first N batch losses
+                pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
             global_step += 1
 
             # 🧩 2️⃣ Gradient norm diagnostic every N steps

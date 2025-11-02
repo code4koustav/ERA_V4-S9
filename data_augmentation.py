@@ -82,6 +82,46 @@ def get_val_transform():
     ])
 
 
+def mixup_cutmix_data(x, y, alpha=0.2, cutmix_prob=0.5, use_cutmix=True, use_mixup=True):
+    """Apply MixUp or CutMix to a batch"""
+    if not use_cutmix and not use_mixup:
+        return x, y, y, 1.0  # unchanged
+
+    lam = 1.0
+    rand_index = torch.randperm(x.size(0)).to(x.device)
+
+    if use_cutmix and np.random.rand() < cutmix_prob:
+        # --- CutMix ---
+        lam = np.random.beta(alpha, alpha)
+        bbx1, bby1, bbx2, bby2 = rand_bbox(x.size(), lam)
+        x[:, :, bby1:bby2, bbx1:bbx2] = x[rand_index, :, bby1:bby2, bbx1:bbx2]
+        lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (x.size(-1) * x.size(-2)))
+    elif use_mixup:
+        # --- MixUp ---
+        lam = np.random.beta(alpha, alpha)
+        x = lam * x + (1 - lam) * x[rand_index, :]
+
+    y_a, y_b = y, y[rand_index]
+    return x, y_a, y_b, lam
+
+
+def rand_bbox(size, lam):
+    """Helper: generate random bounding box for CutMix"""
+    W, H = size[3], size[2]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = int(W * cut_rat)
+    cut_h = int(H * cut_rat)
+
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+    return bbx1, bby1, bbx2, bby2
+
 # -----------------------------
 # Dataset wrapper for Albumentations
 # -----------------------------
