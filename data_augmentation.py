@@ -91,24 +91,27 @@ def get_val_transform():
 
 
 def mixup_cutmix_data(x, y, alpha=0.2, cutmix_prob=0.5, use_cutmix=True, use_mixup=True):
-    """Apply MixUp or CutMix to a batch"""
+    """Apply MixUp or CutMix to a batch (AMP-safe, with edge-case guards)."""
     if not use_cutmix and not use_mixup:
-        return x, y, y, 1.0  # unchanged
+        return x, y, y, 1.0
 
     lam = 1.0
-    rand_index = torch.randperm(x.size(0)).to(x.device)
+    rand_index = torch.randperm(x.size(0), device=x.device)
 
     if use_cutmix and np.random.rand() < cutmix_prob:
         # --- CutMix ---
         lam = np.random.beta(alpha, alpha)
+        lam = np.clip(lam, 0.01, 0.99)
         bbx1, bby1, bbx2, bby2 = rand_bbox(x.size(), lam)
         x[:, :, bby1:bby2, bbx1:bbx2] = x[rand_index, :, bby1:bby2, bbx1:bbx2]
         lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (x.size(-1) * x.size(-2)))
     elif use_mixup:
         # --- MixUp ---
         lam = np.random.beta(alpha, alpha)
+        lam = np.clip(lam, 0.01, 0.99)
         x = lam * x + (1 - lam) * x[rand_index, :]
 
+    lam = float(lam)
     y_a, y_b = y, y[rand_index]
     return x, y_a, y_b, lam
 
