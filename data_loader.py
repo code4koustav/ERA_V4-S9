@@ -9,6 +9,7 @@ from data_augmentation import AlbumentationsImageDataset, HFDatasetWrapper, get_
 import os
 import shutil
 from datasets import load_dataset
+from monitor import visualize_augmentations
 
 def reorganize_val_folder(val_dir):
     """
@@ -128,6 +129,9 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transf
     # CUDA settings
     cuda = torch.cuda.is_available()
     torch.manual_seed(1)
+
+    # Visualize some images with augmentations
+    visualize_augmentations(train_dataset, save_path="aug_preview_finetune.png")
 
     dataloader_args = dict(
         batch_size=batch_size, num_workers=num_workers, pin_memory=True, shuffle=True

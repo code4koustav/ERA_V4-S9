@@ -2,6 +2,9 @@ import psutil
 import pynvml
 import torch
 import time
+import matplotlib.pyplot as plt
+import torchvision
+import numpy as np
 
 # Initialize NVIDIA Management Library
 pynvml.nvmlInit()
@@ -90,6 +93,40 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
 
 
+def visualize_augmentations(dataset, n_images=16, nrow=4, save_path=None):
+    """
+    Visualize a few augmented samples from a dataset to sanity-check transforms.
 
+    Args:
+        dataset: torch.utils.data.Dataset (e.g., your training dataset)
+        n_images: total number of images to show
+        nrow: grid columns
+        save_path: if given, saves the plot instead of showing it
+    """
+    # temporarily disable shuffling if DataLoader wraps dataset
+    idxs = np.random.choice(len(dataset), size=n_images, replace=False)
+
+    imgs = []
+    for i in idxs:
+        img, label = dataset[i]
+        if isinstance(img, torch.Tensor):
+            imgs.append(img)
+        else:
+            # some transforms may return numpy arrays
+            imgs.append(torch.from_numpy(np.array(img)).permute(2, 0, 1))
+
+    grid = torchvision.utils.make_grid(imgs, nrow=nrow, normalize=True, scale_each=True)
+    npimg = grid.cpu().numpy().transpose((1, 2, 0))
+
+    plt.figure(figsize=(nrow * 2.5, n_images / nrow * 2.5))
+    plt.imshow(np.clip(npimg, 0, 1))
+    plt.axis("off")
+    plt.title("Sample Augmented Images", fontsize=14)
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight", dpi=200)
+        print(f"✅ Saved augmentation preview to {save_path}")
+    else:
+        plt.show()
 
 
