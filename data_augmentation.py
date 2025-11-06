@@ -80,7 +80,7 @@ def get_train_transform(mode="full_train"):
     else:
         # Softer augmentations for fine-tuning
         return A.Compose([
-            A.RandomResizedCrop(224, 224, scale=(0.7, 1.0), ratio=(0.8, 1.2)),
+            A.RandomResizedCrop(size=(224, 224), scale=(0.7, 1.0), ratio=(0.8, 1.2), p=1.0),
 
             # Simple flip and mild geometry
             A.HorizontalFlip(p=0.5),
