@@ -6,6 +6,7 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import math
+import cv2
 
 # -----------------------------
 # Albumentations-based transformations
@@ -80,12 +81,29 @@ def get_train_transform(mode="full_train"):
         # Softer augmentations for fine-tuning
         return A.Compose([
             A.RandomResizedCrop(224, 224, scale=(0.7, 1.0), ratio=(0.8, 1.2)),
+
+            # Simple flip and mild geometry
             A.HorizontalFlip(p=0.5),
-            A.Lambda(image=lambda x: RandAugment(num_ops=1, magnitude=7)(x)),
+            A.ShiftScaleRotate(
+                shift_limit=0.05, scale_limit=0.05, rotate_limit=10,
+                border_mode=cv2.BORDER_REFLECT_101, p=0.2
+            ),
+            # Light color jittering, similar to validation distribution
+            A.ColorJitter(
+                brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.3
+            ),
+            A.RandomBrightnessContrast(p=0.2),
+            # Tiny bit of regularization
             A.OneOf([
                 A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 1.0)),
-                A.CoarseDropout(max_holes=1, max_height=24, max_width=24),
-            ], p=0.15),
+                A.CoarseDropout(
+                    num_holes_range=(1, 1),
+                    hole_height_range=(8, 16),
+                    hole_width_range=(8, 16),
+                    fill=(0, 0, 0),
+                    fill_mask=None
+                ),
+            ], p=0.2),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ToTensorV2()
         ])
