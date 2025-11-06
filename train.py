@@ -62,7 +62,7 @@ def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_
     scheduler = SequentialLR(
         optimizer,
         schedulers=[warmup, cosine],
-        milestones=[warmup_epochs] # switch to cosine after warmup
+        milestones=[warmup_steps] # switch to cosine after warmup
     )
     return scheduler
 
