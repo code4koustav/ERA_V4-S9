@@ -10,7 +10,7 @@ from model import ResNet50
 from train import train_loop, val_loop, get_sgd_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
 from data_augmentation import get_cutmix_prob
-from monitor import get_system_stats
+from monitor import get_system_stats, measure_dataloader_speed
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 import copy
@@ -117,6 +117,11 @@ def main(data_path="./content/tiny-imagenet-200",
         inspector.inspect_loader("Training Set")
     else:
         print("\n[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)")
+
+    print("🔍 Profiling DataLoader speed before training ...")
+    # If it’s <0.05s per batch → great. If >0.2s → GPU will likely starve at times.
+    avg_time = measure_dataloader_speed(train_loader, num_batches=200)
+    print(f"✅ Avg. DataLoader batch time: {avg_time:.4f}s\n")
     
     # ====== STEP 4: Initialize Model ======
     print(f"\n[STEP 4/6] Initializing ResNet50 model...")

@@ -130,3 +130,26 @@ def visualize_augmentations(dataset, n_images=16, nrow=4, save_path=None):
         plt.show()
 
 
+def measure_dataloader_speed(dataloader, num_batches=100):
+    """
+    Measure average time (in seconds) spent per batch in the DataLoader.
+    Only measures data loading, not forward/backward pass.
+    """
+    start_time = time.time()
+    n_batches = 0
+
+    data_iter = iter(dataloader)
+    for _ in range(num_batches):
+        try:
+            _ = next(data_iter)
+            n_batches += 1
+        except StopIteration:
+            break
+
+    total_time = time.time() - start_time
+    avg_time = total_time / max(1, n_batches)
+
+    print(f"🔍 DataLoader profiling: {n_batches} batches")
+    print(f"⏱️  Average batch load time: {avg_time:.4f} sec")
+    print(f"⚡ Approx. samples/sec (per worker): {dataloader.batch_size / avg_time / dataloader.num_workers:.1f}")
+    return avg_time
