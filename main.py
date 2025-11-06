@@ -11,7 +11,7 @@ from train import train_loop, val_loop, get_sgd_optimizer, get_lr_scheduler, get
 from utils import InspectImage
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
-
+import copy
 
 def unzip_tiny_imagenet(zip_path, extract_to):
     """
@@ -36,6 +36,15 @@ def unzip_tiny_imagenet(zip_path, extract_to):
         zip_ref.extractall(extract_to)
     print("✓ Extraction complete!")
     return True
+
+
+def create_ema_model(model):
+    # Create a copy of the model and update it with EMA weights
+    ema_decay = 0.9999
+    ema_model = copy.deepcopy(model)
+    for param in ema_model.parameters():
+        param.requires_grad_(False)
+    return ema_model, ema_decay
 
 
 def main(data_path="./content/tiny-imagenet-200", 
@@ -187,6 +196,8 @@ def main(data_path="./content/tiny-imagenet-200",
     else:
         start_epoch = 1
 
+    # ✅ Create EMA *after* loading weights
+    ema_model, ema_decay = create_ema_model(model)
 
     for epoch in range(start_epoch, num_epochs + 1):
         start_time = time.time()
@@ -197,12 +208,13 @@ def main(data_path="./content/tiny-imagenet-200",
         # Training
         print("\n🔄 Training...")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-                                             accumulation_steps=accumulation_steps, use_amp=use_amp)
+                                             accumulation_steps=accumulation_steps, use_amp=use_amp,
+                                             ema_model=ema_model, ema_decay=ema_decay)
         
         # Validation
         print("\n🔍 Validating...")
         val_losses, val_acc = val_loop(
-            model, device, val_loader, val_losses, val_acc, use_amp=use_amp
+            ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
         )
         
         # Print epoch summary
@@ -219,10 +231,12 @@ def main(data_path="./content/tiny-imagenet-200",
             print(f"Validation loss improved to {best_loss:.4f}. Saving model weights to {best_weights_file}")
             save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], best_weights_file, use_amp)
 
+
         # Save every epoch as well, for backup
         epoch_weights_file = os.path.join(checkpoints_dir, f"epoch-{epoch}.pth")
         print(f"Saving epoch weights: {epoch_weights_file}")
         save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], epoch_weights_file, use_amp)
+        torch.save(ema_model.state_dict(), f"epoch-{epoch}-ema.pth")
 
         # Aggregate epoch metrics
         train_loss_epoch = sum(train_losses[-len(train_loader):]) / len(train_loader)

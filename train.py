@@ -159,8 +159,15 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
 
 
+def update_ema(model, ema_model, decay):
+    with torch.no_grad():
+        for ema_p, p in zip(ema_model.parameters(), model.parameters()):
+            # ema_p.copy_(ema_p * decay + p * (1 - decay))
+            ema_p.data.mul_(decay).add_(p.data, alpha=1 - decay)
+
+
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-               accumulation_steps=4, use_amp=True, debug_every=200):
+               accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999):
     """
     Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
@@ -239,6 +246,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                     pbar.write(f"[Warning] GradScaler scale dropped below 1 — possible inf/NaN gradients.")
             else:
                 optimizer.step()
+
+            # Update EMA model
+            update_ema(model, ema_model, ema_decay)
 
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
