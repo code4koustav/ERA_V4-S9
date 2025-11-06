@@ -1,13 +1,21 @@
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
 
 
-def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
-    return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
+    optimizer = torch.optim.SGD(
+        model.parameters(),
+        lr=lr,
+        momentum=momentum,
+        weight_decay=weight_decay,
+        nesterov=nesterov
+    )
+    return optimizer
 
 
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
@@ -27,6 +35,34 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
     )
     #Should print ~0.008 (for div_factor=25).
     print("Initial LR:", optimizer.param_groups[0]['lr'])
+    return scheduler
+
+
+def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_epochs=2):
+    # Fine-tuning scheduler: short warmup + cosine decay
+
+    total_steps = num_epochs * steps_per_epoch
+    warmup_steps = warmup_epochs * steps_per_epoch
+
+    # # manually set optimizer LR start (low warmup start) -- not needed, start_factor will take care of this
+    # for g in optimizer.param_groups:
+    #     g['lr'] = max_lr / 10
+
+    warmup = LinearLR(
+        optimizer,
+        start_factor=1/10, # start at 10% of base LR
+        total_iters=warmup_steps # number of scheduler.step() calls during warmup
+    )
+    cosine = CosineAnnealingLR(
+        optimizer,
+        T_max=total_steps - warmup_steps, # number of remaining updates
+        eta_min=1e-6
+    )
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup, cosine],
+        milestones=[warmup_epochs] # switch to cosine after warmup
+    )
     return scheduler
 
 

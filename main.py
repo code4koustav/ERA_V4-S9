@@ -7,7 +7,7 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, val_loop, get_lr_scheduler, load_checkpoint, save_checkpoint
+from train import train_loop, val_loop, get_sgd_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
@@ -50,7 +50,8 @@ def main(data_path="./content/tiny-imagenet-200",
          use_amp=True,
          hf_dataset=True,
          experiment_name="MyTrainRun",
-         resume_weights_file="best.pth"
+         resume_weights_file="best.pth",
+         finetuning_run=False
          ):
     """
     Main function to run the complete training pipeline
@@ -120,30 +121,40 @@ def main(data_path="./content/tiny-imagenet-200",
     
     # ====== STEP 5: Setup Training (Optimizer + LR Scheduler) ======
     print(f"\n[STEP 5/6] Setting up optimizer and LR scheduler...")
-    
-    # Optimizer: SGD with momentum
-    optimizer = optim.SGD(model.parameters(), 
-                         lr=learning_rate, 
-                         momentum=0.9, 
-                         weight_decay=5e-4)
 
-    # Learning Rate Strategy: OneCycleLR
-    # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
-    # effectively making the model step fewer times. So LR schedule runs too fast relative to optimization steps and needs to be handled
+    # Optimizer: SGD with momentum
+    if finetuning_run:
+        weight_decay = 1e-4
+        nesterov = True
+    else:
+        weight_decay = 5e-4
+        nesterov = False
+    optimizer = get_sgd_optimizer(model, learning_rate, momentum=0.9, weight_decay=weight_decay, nesterov=nesterov)
+
     accumulation_steps = 4
     steps_per_epoch = len(train_loader) // accumulation_steps
-    scheduler = get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate)
-    
-    print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay=5e-4)")
-    print(f"✓ LR Scheduler: OneCycleLR")
+    print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay={weight_decay}), nesterov={nesterov}")
     print(f"  - Max LR: {learning_rate}")
     print(f"  - Total steps: {steps_per_epoch * num_epochs}")
 
-    # --- Diagnostic: check warmup length ---
-    total_steps = getattr(scheduler, "total_steps", num_epochs * steps_per_epoch)
-    pct_start = getattr(scheduler, "pct_start", 0.08)  # default to your chosen warmup %
-    warmup_steps = int(total_steps * pct_start)
-    print(f"Total steps: {total_steps:,}, Warmup steps: {warmup_steps:,} ({pct_start*100:.1f}% of training)")
+    if finetuning_run:
+        # Learning Rate Strategy while finetuning: warmup + cosine annealing
+        # For finetuning run, use learning_rate=0.01. Should see val accuracy jump earlier and rise past 70% within ~10 epochs.
+        warmup_epochs = num_epochs // 10
+        scheduler = get_cosine_scheduler(optimizer, learning_rate, num_epochs, steps_per_epoch, warmup_epochs)
+        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs")
+    else:
+        # Learning Rate Strategy while training from scratch: OneCycleLR
+        # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
+        # effectively making the model step fewer times. So LR schedule runs too fast relative to optimization steps and needs to be handled
+        scheduler = get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate)
+
+        # --- Diagnostic: check warmup length ---
+        print(f"✓ LR Scheduler: OneCycleLR")
+        total_steps = getattr(scheduler, "total_steps", num_epochs * steps_per_epoch)
+        pct_start = getattr(scheduler, "pct_start", 0.08)  # default to your chosen warmup %
+        warmup_steps = int(total_steps * pct_start)
+        print(f"Total steps: {total_steps:,}, Warmup steps: {warmup_steps:,} ({pct_start*100:.1f}% of training)")
 
     # ====== STEP 6: Training Loop ======
     print(f"\n[STEP 6/6] Starting training...")
