@@ -11,7 +11,7 @@ This document outlines the setup process for training ImageNet models on AWS usi
 - **EBS Volume:** 350GB attached and mounted at `/Data`
 
 
-1.**Setup EBS Volume**
+1.1 **Setup EBS Volume**
 ```commandline
 # Check the name for the 350GB disk. Can be nvme1n1, nvme2n1..
 lsblk
@@ -48,13 +48,13 @@ sudo mount -a
 ```
 
 
-2.**Set up directories and environment**
+1.2 **Set up directories and environment**
    ```bash
    export HF_HOME=/Data/hf_cache
    ```
    - Hugging Face cache: /Data/hf_cache
    - Dataset cache: /Data/datasets/cache
-3.**Download the dataset from Hugging Face**
+1.3 **Download the dataset from Hugging Face**
     Download script:  
 ```python
 from datasets import load_dataset
@@ -68,7 +68,7 @@ dataset = load_dataset(
     - Estimated time: 
       - Data download: ~1 hour
       - Train/validation split generation: ~2 hours
-4.Post-download
+1.4 Post-download
     - Detach the 350GB EBS volume (to reuse for training later).
 
 ## 💽 2. Creating a Training AMI
@@ -79,7 +79,7 @@ dataset = load_dataset(
 - **Root volume**: 30GB
 
 
-### Step 1 — Install NVIDIA Drivers  
+### Step 2.1 — Install NVIDIA Drivers  
 ```commandline
 uname -a
 sudo apt-get update && sudo apt upgrade
@@ -98,7 +98,7 @@ nvidia-smi  # should show CUDA 12.8
 
 ```
 
-### Step 2 — Install `uv` and Python Packages  
+### Step 2.2 — Install `uv` and Python Packages  
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -124,7 +124,7 @@ uv pip install tensorboard
 uv pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
 ```   
 
-### Step 3 — Clone GitHub Repository  
+### Step 2.3 — Clone GitHub Repository  
 
 ```commandline
 ssh-keygen -t rsa -b 4096 -C "youremail@example.com"
@@ -142,7 +142,7 @@ source ~/.bashrc
 
 ```  
 
-### Step 4 — Create AMI
+### Step 2.4 — Create AMI
 - Exclude /Data EBS volume from the image.
 - AMI Name: imagenet-train-ami
 - Snapshot Size: ~16GB  
@@ -153,12 +153,12 @@ source ~/.bashrc
 ### Instance Details
 - **AMI**: imagenet-train-ami
 - **Instance Type:** `g4dn.xlarge` to start with
-    g5.xlarge next
-- **Zone**: ap-south-1a (Same zone as the EBS volume containing the dataset, so that it can be attached)
+    g5.xlarge next -> g5.2xlarge final
+- **Network Settings -> Zone**: ap-south-1a (Same zone as the EBS volume containing the dataset, so that it can be attached)
 - Select Spot instance option
 
 
-#### Step 1 - Attach and Mount the EBS Volume
+### Step 3.1 - Attach and Mount the previoous Data EBS Volume
 
 ```commandline
     # Check the disk name for the 350GB disk
@@ -169,43 +169,48 @@ source ~/.bashrc
     lsblk
 ```   
 
-Add volume to fstab so that it is mounted on startup     
-```commandline
-sudo cp /etc/fstab /etc/fstab.orig
+### Step 3.2 - Mount the EC2 instance's SSD volume and copy Imagenet data there  
+   Check the disk name for the EC2 instance's volume -- should be nvme1n1 usually
+   ```
+   lsblk
+   sudo mkfs -t ext4 /dev/nvme1n1
+   sudo mkdir /Imagenet
+   sudo mount /dev/nvme1n1 /Imagenet
+   lsblk
+   ```   
 
-# Get the UUID of this volume, and add it to fstab
-sudo blkid
-sudo vim /etc/fstab
+   Copy the huggingface datasets cache directory only   
+   ```
+   sudo apt-get install -y rsync 
+   mkdir /Imagenet/datasets_cache
+   #cp -r /Data/datasets_cache /Imagenet
+   sudo rsync -ah --info=progress2 --inplace /Data/datasets_cache/ /Imagenet/datasets_cache/
+   ```   
 
-(fstab entry:)
-UUID=fda4420c-9eaa-4e57-bfe6-99f46f98d9f2  /Data  xfs  defaults,nofail  0  2
-```   
+### Step 3 - Environment setup
 
-Testing mounting and unmounting    
-```commandline
-sudo umount /Data
-lsblk
-sudo mount -a
+- Add the Huggingface Dataset cache directory to .bashrc. No need to set HF_HOME  
 ```
-
-#### Step 2 - Environment setup
-
-- add HF_HOME to .bashrc
-```commandline
-   export HF_HOME=/Data/hf_cache
+   export HF_DATASETS_CACHE="/Imagenet/datasets_cache"
+   #export HF_HOME=/Imagenet/hf_cache
+   #unset HF_HOME
    source ~/.bashrc
 ```
 
 - Virtual environment is at:
-   source my-venv/bin/activate
+   source my-venv/bin/activate 
 
  - Some python packages were installed after AMI image was created, so they got missed..   
    uv pip install albumentations   
    uv pip install tensorboard
+   uv pip install psutil pynvml
 
  - Pull latest master on the git repo
  - Update hyperparams in main.py
  - Create checkpoints dir under /Data ebs volume
+
+### Step 4 - Start training
+
  - Start training inside screen/tmux session:
 ```commandline
    screen -S train
@@ -222,3 +227,4 @@ source my-venv/bin/activate
 tensorboard --logdir=/Data/tf_runs --host=0.0.0.0 --port=6006
 ```
 Open port 6006 from inbound rules
+
