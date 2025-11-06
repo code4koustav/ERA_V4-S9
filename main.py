@@ -10,6 +10,7 @@ from model import ResNet50
 from train import train_loop, val_loop, get_sgd_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
 from data_augmentation import get_cutmix_prob
+from monitor import get_system_stats
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 import copy
@@ -214,6 +215,7 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
+        stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=0.5, mode=mode)
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
@@ -258,6 +260,11 @@ def main(data_path="./content/tiny-imagenet-200",
         writer.add_scalar("Accuracy/train", train_acc_epoch, epoch)
         writer.add_scalar("Loss/val", val_loss_epoch, epoch)
         writer.add_scalar("Accuracy/val", val_acc_epoch, epoch)
+
+        # Log these from inside training loop for better granularity
+        writer.add_scalar("System/CPU_Usage", stats["cpu"], epoch)
+        writer.add_scalar("System/GPU_Usage", stats["gpu"], epoch)
+        writer.add_scalar("System/GPU_Mem", stats["gpu_mem"], epoch)
 
         # Log learning rate
         for i, param_group in enumerate(optimizer.param_groups):

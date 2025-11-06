@@ -5,6 +5,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
+from monitor import print_diagnostics
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
@@ -99,66 +100,6 @@ def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
     return start_epoch, best_loss
 
 
-def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
-    """
-    Print gradient diagnostics:
-      - Total & max grad norms
-      - NaN / Inf / Zero gradient checks
-      - GradScaler info (if AMP enabled)
-    """
-    total_norm_sq = 0.0
-    max_norm = 0.0
-    grad_none_count = 0
-    nan_layers, inf_layers, zero_layers = [], [], []
-
-    #Print Gradient norm for debugging. If grad norm ≈ 0 for many updates, learning is not happening.
-    # If inf/nan, there's numerical instability.
-    print("\n=== Gradient norms per layer (first few layers) ===")
-    for name, p in model.named_parameters():
-        if p.grad is not None:
-            grad_data = p.grad.data
-            grad_norm = grad_data.norm(2).item()
-            total_norm_sq += grad_norm ** 2
-            max_norm = max(max_norm, grad_norm)
-
-            # Detect anomalies
-            if torch.isnan(grad_data).any():
-                nan_layers.append(name)
-            elif torch.isinf(grad_data).any():
-                inf_layers.append(name)
-            elif torch.allclose(grad_data, torch.zeros_like(grad_data)):
-                zero_layers.append(name)
-            # count += 1
-            # if count <= 10:  # limit printout
-            #     print(f"{name:<40s} grad_norm={grad_norm:.6e}")
-        else:
-            grad_none_count += 1
-            # Only print first few missing grads to avoid spam
-            if grad_none_count <= 5:
-                print(f"{name:<40s} grad=None")
-
-    total_norm = total_norm_sq ** 0.5
-    pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
-
-    # Print anomalies (if any)
-    if nan_layers:
-        pbar.write(f"[Warning] NaN gradients in: {', '.join(nan_layers[:5])}{'...' if len(nan_layers) > 5 else ''}")
-    if inf_layers:
-        pbar.write(f"[Warning] Inf gradients in: {', '.join(inf_layers[:5])}{'...' if len(inf_layers) > 5 else ''}")
-    if zero_layers:
-        pbar.write(f"[Info] Zero gradients in: {', '.join(zero_layers[:5])}{'...' if len(zero_layers) > 5 else ''}")
-
-    if not (nan_layers or inf_layers or zero_layers):
-        pbar.write("[Grad Debug] No NaN/Inf/Zero gradients detected ✅")
-
-    # AMP / GradScaler info
-    if use_amp and scaler is not None:
-        scale_val = scaler.get_scale()
-        pbar.write(f"[Grad Debug] GradScaler scale={scale_val:.1f}")
-    # else:
-    #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
-
-
 def update_ema(model, ema_model, decay):
     with torch.no_grad():
         for ema_p, p in zip(ema_model.parameters(), model.parameters()):
@@ -217,17 +158,17 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         else:
             loss.backward()
 
+        # 🧩 2️⃣ Gradient norm diagnostic every N steps
+        if batch_idx % debug_every == 0:
+            print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
+            pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
+                       f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
+
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
             if batch_idx < 20: #log first N batch losses
                 pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
             global_step += 1
-
-            # 🧩 2️⃣ Gradient norm diagnostic every N steps
-            if batch_idx % debug_every == 0:
-                print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
-                pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
-                           f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
 
             if use_amp:
                 scaler.unscale_(optimizer)
