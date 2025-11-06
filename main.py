@@ -187,6 +187,7 @@ def main(data_path="./content/tiny-imagenet-200",
     val_losses = []
     val_acc = []
     best_loss = float('inf')
+    start_epoch = 1
     resume_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
     best_weights_file = os.path.join(checkpoints_dir, "best.pth")
 
@@ -198,14 +199,22 @@ def main(data_path="./content/tiny-imagenet-200",
 
     if resume_training and os.path.exists(resume_weights_file):
         # Resume from best weights, or from last epoch
-        start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, resume_weights_file, device, use_amp)
+        # ToDo Smita: finetuning run can also be interrupted and need to resume. Handle this correctly
+        if not finetuning_run: # Scheduler has changed
+            start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, resume_weights_file,
+                                                     device, use_amp, finetuning_run)
 
-        # Fast-forward scheduler so it resumes from the correct LR step
-        completed_steps = start_epoch * steps_per_epoch
-        for _ in range(completed_steps):
-            scheduler.step()
-        print(f"[Resume] Scheduler fast-forwarded to epoch {start_epoch}, step {completed_steps}.")
-        print(f"[Resume] Current LR = {optimizer.param_groups[0]['lr']:.6f}")
+            # Fast-forward scheduler so it resumes from the correct LR step
+            completed_steps = start_epoch * steps_per_epoch
+            for _ in range(completed_steps):
+                scheduler.step()
+            print(f"[Resume] Scheduler fast-forwarded to epoch {start_epoch}, step {completed_steps}.")
+            print(f"[Resume] Current LR = {optimizer.param_groups[0]['lr']:.6f}")
+        else:
+            print("Starting fresh scheduler for fine-tuning.")
+            checkpoint = torch.load(resume_weights_file, map_location=device)
+            model.load_state_dict(checkpoint["model_state"])
+            print(f"Loaded {resume_weights_file} for finetuning run, without loading optimizer/scheduler/scaler states")
     else:
         start_epoch = 1
 
@@ -405,5 +414,6 @@ if __name__ == "__main__":
         hf_dataset=True,
         experiment_name="Run6-finetuning",
         resume_training=True,
-        resume_weights_file="run5-epoch89.pth"
+        resume_weights_file="run5-epoch89.pth",
+        finetuning_run=True
     )
