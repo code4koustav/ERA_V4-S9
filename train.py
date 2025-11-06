@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
+from data_augmentation import mixup_cutmix_data
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
@@ -10,9 +11,6 @@ def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
 
 
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
-
-    # total_steps = steps_per_epoch * num_epochs
-
     scheduler = OneCycleLR(
         optimizer,
         max_lr=learning_rate,
@@ -124,6 +122,7 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     # else:
     #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
 
+
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                accumulation_steps=4, use_amp=True, debug_every=200):
     """
@@ -143,6 +142,12 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
+        # Apply MixUp or CutMix
+        data, targets_a, targets_b, lam = mixup_cutmix_data(
+            data, target, alpha=0.2, cutmix_prob=0.5,
+            use_cutmix=True, use_mixup=True
+        )
+
         # 🧠 Check input stats for zero / NaN inputs. Expected: mean ≈ 0, std ≈ 1, min/max roughly around -2.1 and +2.6
         if batch_idx == 0:  # print for only first batch to avoid spam
             pbar.write(f"[Debug] Input mean={data.mean().item():.4f}, std={data.std().item():.4f}, "
@@ -154,9 +159,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Forward + loss under autocast
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
-
-            # Calculate loss (divide by accumulation steps)
-            loss = F.cross_entropy(y_pred, target) / accumulation_steps
+            # ✅Compute smoothed loss for both targets (MixUp / CutMix)
+            loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=0.1) \
+                   + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=0.1)
+            loss = loss / accumulation_steps
 
         # Track unscaled loss (for logging)
         train_losses.append(loss.detach().item() * accumulation_steps)
@@ -169,18 +175,24 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
-            pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
+            if batch_idx < 20: #log first N batch losses
+                pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
             global_step += 1
 
             # 🧩 2️⃣ Gradient norm diagnostic every N steps
-            if (batch_idx // accumulation_steps) % debug_every == 0:
+            if batch_idx % debug_every == 0:
                 print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
+                pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
+                           f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
 
-            # Add gradient clipping to prevent instability in the first few thousand steps
             if use_amp:
                 scaler.unscale_(optimizer)
+
+            # Add gradient clipping to prevent instability in the first few thousand steps.
+            # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
             total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
+            if batch_idx % debug_every == 0:
+                pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
 
             # ✅ Optimizer step (AMP vs non-AMP)
             if use_amp:
@@ -228,7 +240,7 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
         for data, target in tqdm(val_loader, desc="Validating", leave=False):
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             output = model(data)
-            val_loss += F.cross_entropy(output, target, reduction='sum').item()
+            val_loss += F.cross_entropy(output, target, reduction='sum', label_smoothing=0.1).item()
             pred = output.argmax(dim=1)
             correct += pred.eq(target).sum().item()
 
