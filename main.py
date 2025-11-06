@@ -175,7 +175,8 @@ def main(data_path="./content/tiny-imagenet-200",
     val_losses = []
     val_acc = []
     best_loss = float('inf')
-    best_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
+    resume_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
+    best_weights_file = os.path.join(checkpoints_dir, "best.pth")
 
     # Create Scaler if mixed precision is true
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
@@ -183,9 +184,9 @@ def main(data_path="./content/tiny-imagenet-200",
     # Tensorboard writer
     writer = SummaryWriter(f'/Data/tf_runs/{experiment_name}')  # or simply SummaryWriter()
 
-    if resume_training and os.path.exists(best_weights_file):
-        # Resume from best weights, or from last epoch?
-        start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, best_weights_file, device, use_amp)
+    if resume_training and os.path.exists(resume_weights_file):
+        # Resume from best weights, or from last epoch
+        start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, resume_weights_file, device, use_amp)
 
         # Fast-forward scheduler so it resumes from the correct LR step
         completed_steps = start_epoch * steps_per_epoch
