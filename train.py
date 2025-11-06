@@ -167,7 +167,8 @@ def update_ema(model, ema_model, decay):
 
 
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-               accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999):
+               accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999,
+               current_cutmix_prob=0.5):
     """
     Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
@@ -187,7 +188,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # Apply MixUp or CutMix
         data, targets_a, targets_b, lam = mixup_cutmix_data(
-            data, target, alpha=0.2, cutmix_prob=0.5,
+            data, target, alpha=0.2, cutmix_prob=current_cutmix_prob,
             use_cutmix=True, use_mixup=True
         )
 

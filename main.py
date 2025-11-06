@@ -9,6 +9,7 @@ from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
 from train import train_loop, val_loop, get_sgd_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
+from data_augmentation import get_cutmix_prob
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 import copy
@@ -97,8 +98,13 @@ def main(data_path="./content/tiny-imagenet-200",
     # ====== STEP 2: Load Data ======
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
     print(f"  - Batch size: {batch_size}, num_workers: {num_workers}")
-    # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, val_transform=True)
-    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, val_transform=True, num_workers=num_workers)
+    mode = "finetune" if finetuning_run else "full_train" # Full Training from scratch, or finetuning run
+    if hf_dataset:
+        train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True,
+                                                                val_transform=True, num_workers=num_workers, mode=mode)
+    else:
+        train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size, train_transform=True,
+                                                             val_transform=True, num_workers=num_workers, mode=mode)
     print(f"✓ Train loader: {len(train_loader.dataset)} images, {len(train_loader)} batches")
     print(f"✓ Val loader: {len(val_loader.dataset)} images, {len(val_loader)} batches")
     
@@ -208,9 +214,11 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
+        current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=0.5, mode=mode)
+        print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              accumulation_steps=accumulation_steps, use_amp=use_amp,
-                                             ema_model=ema_model, ema_decay=ema_decay)
+                                             ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob)
         
         # Validation
         print("\n🔍 Validating...")
