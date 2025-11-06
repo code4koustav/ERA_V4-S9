@@ -41,7 +41,7 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
 
     # Print system stats
     stats = get_system_stats()
-    print(f"[Batch {batch_idx:05d}] CPU: {stats['cpu']:5.1f}% | RAM: {stats['ram']:5.1f}% | "
+    pbar.write(f"[Batch {batch_idx:05d}] CPU: {stats['cpu']:5.1f}% | RAM: {stats['ram']:5.1f}% | "
           f"GPU: {stats['gpu']:5.1f}% | GPU-Mem: {stats['gpu_mem']:5.1f}%")
 
 
@@ -69,7 +69,7 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
             grad_none_count += 1
             # Only print first few missing grads to avoid spam
             if grad_none_count <= 5:
-                print(f"{name:<40s} grad=None")
+                pbar.write(f"{name:<40s} grad=None")
 
     total_norm = total_norm_sq ** 0.5
     pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
@@ -153,3 +153,24 @@ def measure_dataloader_speed(dataloader, num_batches=100):
     print(f"⏱️  Average batch load time: {avg_time:.4f} sec")
     print(f"⚡ Approx. samples/sec (per worker): {dataloader.batch_size / avg_time / dataloader.num_workers:.1f}")
     return avg_time
+
+
+def get_gpu_utilization(device=0):
+    """
+    Returns current GPU utilization %.
+    Uses torch.cuda.utilization() if available (PyTorch 2.1+),
+    otherwise queries NVML via pynvml.
+    """
+    util = None
+    try:
+        # PyTorch 2.1+ API (fast)
+        util = torch.cuda.utilization(device)
+    except AttributeError:
+        try:
+            import pynvml
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(device)
+            util = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+        except Exception:
+            util = None
+    return util

@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
-from monitor import print_diagnostics
+from monitor import print_diagnostics, get_gpu_utilization
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
@@ -118,6 +118,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     correct = 0
     processed = 0
     global_step = 0
+    gpu_utils = []
     optimizer.zero_grad(set_to_none=True)
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
@@ -180,6 +181,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                 print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
                 pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
                            f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
+                util = get_gpu_utilization()
+                if util is not None:
+                    gpu_utils.append(util)
+                    pbar.write(f"[GPU] Batch {batch_idx}: {util}% utilization")
 
             # Add gradient clipping to prevent instability in the first few thousand steps.
             # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
@@ -218,6 +223,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f}"
         )
 
+    if gpu_utils:
+        avg_util = sum(gpu_utils) / len(gpu_utils)
+        print(f"✅ Avg GPU utilization this epoch: {avg_util:.1f}%")
+        
     return train_losses, train_acc
 
 
