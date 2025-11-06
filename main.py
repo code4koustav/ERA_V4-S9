@@ -404,12 +404,12 @@ if __name__ == "__main__":
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=352, #368,#384 # Increase if you have enough GPU memory
+        batch_size=368, #368,#384 # Increase if you have enough GPU memory
         num_epochs=25,
         learning_rate=0.01,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
-        num_workers=16,
+        num_workers=8,
         use_amp=True,
         hf_dataset=True,
         experiment_name="Run6-finetuning",
