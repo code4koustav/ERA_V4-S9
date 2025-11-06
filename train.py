@@ -124,6 +124,13 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     current_lr = optimizer.param_groups[0]["lr"]
 
+    num_debug_points = 5  # how many times to print diagnostics per epoch
+    debug_batches = set(
+        int(i * len(train_loader) / num_debug_points)
+        for i in range(num_debug_points)
+    )
+    pbar.write(f"[Debug setup] Diagnostics will run at batches: {sorted(debug_batches)}")
+
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
@@ -158,11 +165,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         else:
             loss.backward()
 
-        # 🧩 2️⃣ Gradient norm diagnostic every N steps
-        if batch_idx % debug_every == 0:
-            print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
-            pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
-                       f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
 
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
@@ -173,10 +175,16 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             if use_amp:
                 scaler.unscale_(optimizer)
 
+            # 🧩 2️⃣ Gradient norm diagnostic every N steps
+            if batch_idx in debug_batches:
+                print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
+                pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
+                           f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
+
             # Add gradient clipping to prevent instability in the first few thousand steps.
             # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
             total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            if batch_idx % debug_every == 0:
+            if batch_idx in debug_batches:
                 pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
 
             # ✅ Optimizer step (AMP vs non-AMP)
