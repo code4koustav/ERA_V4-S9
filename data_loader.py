@@ -105,18 +105,21 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transf
         val_transform (bool): Apply validation transformations if True
     """
     # ToDo Smita: Code cleanup, keep one function for train_val_loader
-
+    
+    cache_dir = os.getenv("HF_DATASETS_CACHE", "/Data/datasets_cache")
     # Load dataset from huggingface cache dir
     train_dataset = load_dataset(
         "ILSVRC/imagenet-1k",
         split="train",
-        cache_dir="/Data/datasets_cache"
+        cache_dir=cache_dir
     )
+    print(f"✅ Using cache directory: {cache_dir}")
+    print("Sample cache file:", train_dataset.cache_files[0]['filename'])
 
     val_dataset = load_dataset(
         "ILSVRC/imagenet-1k",
         split="validation",
-        cache_dir="/Data/datasets_cache"
+        cache_dir=cache_dir
     )
 
     # Select transforms based on flags
