@@ -301,7 +301,7 @@ if __name__ == "__main__":
     gc.collect()
 
     # Set memory fraction (use only 80% of GPU memory)
-    torch.cuda.set_per_process_memory_fraction(0.7)
+    torch.cuda.set_per_process_memory_fraction(0.85)
 
    
     # Enable memory efficient settings
@@ -372,20 +372,38 @@ if __name__ == "__main__":
     # )
 
 
-    # For g5.2xlarge. Resuming previous run from epoch67 -- with aMP
-    # Keep LR and scheduler params same, batch size can be changed
+    # # For g5.2xlarge. Resuming previous run from epoch67 -- with aMP
+    # # Keep LR and scheduler params same, batch size can be changed
+    # model, *metrics = main(
+    #     data_path="",
+    #     zip_path="",
+    #     batch_size=352, #368,#384 # Increase if you have enough GPU memory
+    #     num_epochs=90,
+    #     learning_rate=0.05,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="/Data/checkpoints",
+    #     num_workers=16,
+    #     use_amp=True,
+    #     hf_dataset=True,
+    #     experiment_name="Run5-amp-epoch67",
+    #     resume_training=True,
+    #     resume_weights_file="run4-nonAMP_epoch66.pth"
+    # )
+
+
+    # For g5.2xlarge. Finetuning run with previous best weights
     model, *metrics = main(
         data_path="",
         zip_path="",
         batch_size=352, #368,#384 # Increase if you have enough GPU memory
-        num_epochs=90,
-        learning_rate=0.05,
+        num_epochs=25,
+        learning_rate=0.01,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=16,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run5-amp-epoch67",
+        experiment_name="Run6-finetuning",
         resume_training=True,
-        resume_weights_file="run4-nonAMP_epoch66.pth"
+        resume_weights_file="run5-epoch89.pth"
     )

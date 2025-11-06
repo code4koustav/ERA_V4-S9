@@ -133,9 +133,11 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transf
     # Visualize some images with augmentations
     visualize_augmentations(train_dataset, save_path="aug_preview_finetune.png")
 
+    # Note: If transforms are dynamically changing mid-training, ie switching from heavy to light augmentations, then
+    # persistent_workers must be False, else the changes will not be picked up by Dataloader
     dataloader_args = dict(
         batch_size=batch_size, num_workers=num_workers, pin_memory=True, shuffle=True
-    ) if cuda else dict(batch_size=batch_size, shuffle=True)
+    ) if cuda else dict(batch_size=batch_size, shuffle=True, persistent_workers=True)
 
     train_loader = DataLoader(train_dataset, **dataloader_args)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
