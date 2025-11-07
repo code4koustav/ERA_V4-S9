@@ -304,7 +304,7 @@ import pandas as pd
 
 # Read formatted log file
 log_data = []
-with open("logs/epoch_run_formatted.log", 'r') as f:
+with open("logs/tiny-imagenet/epoch_run_formatted.log", 'r') as f:
     for line in f:
         if 'Loss=' in line and 'Accuracy=' in line:
             parts = line.strip().split(', ')
