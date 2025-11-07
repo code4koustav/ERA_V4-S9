@@ -11,7 +11,8 @@ This document outlines the setup process for training ImageNet models on AWS usi
 - **EBS Volume:** 350GB attached and mounted at `/Data`
 
 
-1.1 **Setup EBS Volume**
+### Step 1.1 — Setup EBS Volume
+
 ```commandline
 # Check the name for the 350GB disk. Can be nvme1n1, nvme2n1..
 lsblk
@@ -48,14 +49,18 @@ sudo mount -a
 ```
 
 
-1.2 **Set up directories and environment**
+### Step 1.2 — Set up directories and environment
+
    ```bash
    export HF_HOME=/Data/hf_cache
    ```
    - Hugging Face cache: /Data/hf_cache
-   - Dataset cache: /Data/datasets/cache
-1.3 **Download the dataset from Hugging Face**
-    Download script:  
+   - Dataset cache: /Data/datasets/cache  
+
+
+### Step 1.3 — Download the dataset from Hugging Face
+
+    Download script:    
 ```python
 from datasets import load_dataset
 dataset = load_dataset(
@@ -67,9 +72,12 @@ dataset = load_dataset(
 
     - Estimated time: 
       - Data download: ~1 hour
-      - Train/validation split generation: ~2 hours
-1.4 Post-download
+      - Train/validation split generation: ~2 hours  
+
+
+### Step 1.4 — Post-download
     - Detach the 350GB EBS volume (to reuse for training later).
+
 
 ## 💽 2. Creating a Training AMI
 
@@ -186,6 +194,7 @@ source ~/.bashrc
    #cp -r /Data/datasets_cache /Imagenet
    sudo rsync -ah --info=progress2 --inplace /Data/datasets_cache/ /Imagenet/datasets_cache/
    ```   
+   Copying took 20 mins  
 
 ### Step 3 - Environment setup
 
@@ -200,10 +209,31 @@ source ~/.bashrc
 - Virtual environment is at:
    source my-venv/bin/activate 
 
- - Some python packages were installed after AMI image was created, so they got missed..   
+ - Some python packages were installed after AMI image was created, so they got missed..
+```commandline
    uv pip install albumentations   
    uv pip install tensorboard
    uv pip install psutil pynvml
+   uv pip install pyjpeg-turbo
+
+  uv pip uninstall pillow
+  sudo apt update
+  sudo apt install -y libjpeg-dev zlib1g-dev libpng-dev # needs zlib
+  uv pip install --no-cache-dir pillow-simd
+
+#Optional, for JPEG acceleration
+sudo apt install libjpeg-turbo-progs
+
+```  
+Verify that Pillow-Simd is in use:
+
+```commandline
+import PIL
+print(PIL.__version__)
+print(PIL.PILLOW_VERSION if hasattr(PIL, "PILLOW_VERSION") else "No legacy version attr")
+print("Pillow build features:", PIL.features.pilinfo())
+
+```
 
  - Pull latest master on the git repo
  - Update hyperparams in main.py

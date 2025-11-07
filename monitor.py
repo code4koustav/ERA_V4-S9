@@ -33,35 +33,50 @@ def get_system_stats():
 # Training logger class
 # -----------------------------
 class TrainLogger:
-    def __init__(self, log_dir="logs", experiment_name="train_run"):
-        os.makedirs(log_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_path = os.path.join(log_dir, f"{experiment_name}_{timestamp}.csv")
+    def __init__(self, log_dir="logs", experiment_name="train_run", log_to_csv=True, log_to_stdout=True):
+        self.log_to_csv = log_to_csv
+        self.log_to_stdout = log_to_stdout
+        self.log_path = None
 
-        # Write header
-        with open(self.log_path, mode='w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "epoch", "batch_idx", "batch_loss", "batch_acc", "loss_ema", "acc_ema",
-                "lr", "grad_norm", "gpu_util", "cpu_util", "ram_util", "gpu_mem"
-            ])
+        if self.log_to_csv:
+            os.makedirs(log_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.log_path = os.path.join(log_dir, f"{experiment_name}_{timestamp}.csv")
 
-    def log(self, epoch, batch_idx, batch_loss, batch_acc, loss_ema, acc_ema, lr,
+            # Write header
+            with open(self.log_path, mode='w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "epoch", "batch_idx", "batch_loss", "batch_acc",
+                    "lr", "grad_norm", "gpu_util", "cpu_util", "ram_util", "gpu_mem"
+                ])
+
+    def log(self, epoch, batch_idx, batch_loss, batch_acc, lr,
             grad_norm=None, gpu_util=None, cpu_util=None, ram_util=None, gpu_mem=None):
-        with open(self.log_path, mode='a', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                epoch, batch_idx, batch_loss, batch_acc,
-                loss_ema if loss_ema is not None else "",
-                acc_ema if acc_ema is not None else "",
-                lr,
-                grad_norm if grad_norm is not None else "",
-                gpu_util if gpu_util is not None else "",
-                cpu_util if cpu_util is not None else "",
-                ram_util if ram_util is not None else "",
-                gpu_mem if gpu_mem is not None else "",
 
-            ])
+        if self.log_to_csv and self.log_path:
+            with open(self.log_path, mode='a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    epoch, batch_idx, batch_loss, batch_acc,
+                    lr,
+                    grad_norm if grad_norm is not None else "",
+                    gpu_util if gpu_util is not None else "",
+                    cpu_util if cpu_util is not None else "",
+                    ram_util if ram_util is not None else "",
+                    gpu_mem if gpu_mem is not None else "",
+
+                ])
+
+        if self.log_to_stdout:
+            msg = (f"Epoch:{epoch} Batch:{batch_idx} | "
+                   f"Loss:{batch_loss:.4f} Acc:{batch_acc:.4f} "
+                   f"LossEMA:{loss_ema:.4f} AccEMA:{acc_ema:.4f} "
+                   f"LR:{lr:.2e} GradNorm:{grad_norm:.2f} "
+                   f"GPU:{gpu_util if gpu_util is not None else 'N/A'} "
+                   f"CPU:{cpu_util if cpu_util is not None else 'N/A'} "
+                   f"RAM:{ram_util if ram_util is not None else 'N/A'}")
+            print(msg)
 
     def info(self):
         return f"Logging to {self.log_path}"
@@ -193,6 +208,20 @@ def measure_dataloader_speed(dataloader, num_batches=100):
     print(f"⏱️  Average batch load time: {avg_time:.4f} sec")
     print(f"⚡ Approx. samples/sec (per worker): {dataloader.batch_size / avg_time / dataloader.num_workers:.1f}")
     return avg_time
+
+
+def log_ema_diff(model, ema_model, step, pbar=None):
+    # If EMA is working, this difference should start small and gradually increase, reflecting smoothing.
+    diffs = []
+    for p, ema_p in zip(model.parameters(), ema_model.parameters()):
+        diffs.append((p - ema_p).abs().mean().item())
+    mean_diff = sum(diffs) / len(diffs)
+    log_str = f"[Step {step}] EMA mean parameter diff: {mean_diff:.6f}"
+    if pbar is not None:
+        pbar.write(log_str)
+    else:
+        print(log_str)
+    return mean_diff
 
 
 # def get_gpu_utilization(device=0):

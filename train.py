@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
-from monitor import print_diagnostics, get_system_stats
+from monitor import print_diagnostics, get_system_stats, log_ema_diff
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
@@ -107,13 +107,6 @@ def update_ema(model, ema_model, decay):
             ema_p.data.mul_(decay).add_(p.data, alpha=1 - decay)
 
 
-def calculate_logger_ema(current, previous_ema, alpha=0.1):
-    """Exponential moving average update."""
-    if previous_ema is None:
-        return current
-    return alpha * current + (1 - alpha) * previous_ema
-
-
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, epoch,
                accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999,
                current_cutmix_prob=0.5, logger=None):
@@ -127,8 +120,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     global_step = 0
     gpu_utils = []
     optimizer.zero_grad(set_to_none=True)
-    loss_ema = None
-    acc_ema = None
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -200,6 +191,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             # Update EMA model
             update_ema(model, ema_model, ema_decay)
 
+            # DEBUG: check EMA update
+            if batch_idx < 20 or batch_idx % 100 == 0:  # log every 100 batches
+                log_ema_diff(model, ema_model, step=batch_idx, pbar=pbar)
+
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
             scheduler.step()
@@ -212,9 +207,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         acc = 100.0 * correct / processed
         train_acc.append(acc)
 
-        # Update EMA metrics
-        # loss_ema = calculate_logger_ema(loss.item() * accumulation_steps, loss_ema, alpha=0.1)
-        # acc_ema = calculate_logger_ema(acc, acc_ema, alpha=0.1)
 
         stats = get_system_stats()  # CPU, RAM, GPU
         if logger:
@@ -223,8 +215,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                 batch_idx=batch_idx,
                 batch_loss=loss.item() * accumulation_steps,
                 acc=acc,
-                loss_ema=loss_ema,
-                acc_ema=acc_ema,
                 lr=current_lr,
                 grad_norm=grad_norm,
                 gpu_util=stats["gpu"],
