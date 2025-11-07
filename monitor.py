@@ -252,6 +252,41 @@ def log_ema_diff(model, ema_model, step, pbar=None, topk_layers=3):
     return abs_diff, rel_diff
 
 
+def ema_sanity_checks(model, ema_model, ema_decay):
+    # 1) Devices & dtypes
+    m0 = next(model.parameters())
+    e0 = next(ema_model.parameters())
+    print("MODEL device/dtype:", m0.device, m0.dtype)
+    print("EMA   device/dtype:", e0.device, e0.dtype)
+
+    # 2) Param count & requires_grad
+    total_params = sum(p.numel() for p in model.parameters())
+    ema_params = sum(p.numel() for p in ema_model.parameters())
+    print("Param counts: model", total_params, "ema", ema_params)
+    print("EMA requires_grad flags (should be False):", any(p.requires_grad for p in ema_model.parameters()))
+
+    # 3) Print decay value
+    print("EMA decay (expect ~0.999 or similar):", ema_decay)
+
+    # 4) Relative / per-layer diffs (top few)
+    with torch.no_grad():
+        abs_diff = 0.0
+        abs_ref  = 0.0
+        layer_diffs = []
+        for i, (p, q) in enumerate(zip(model.parameters(), ema_model.parameters())):
+            d = torch.sum(torch.abs(p - q)).item()
+            abs_diff += d
+            abs_ref += torch.sum(torch.abs(p)).item()
+            if i < 6:
+                # print a few layer norms and differences
+                layer_diffs.append((i, p.norm().item(), q.norm().item(), d))
+        rel_diff = abs_diff / (abs_ref + 1e-12)
+    print("ABS diff:", abs_diff, "REL diff:", rel_diff)
+    print("First layers (idx, model_norm, ema_norm, absdiff):")
+    for t in layer_diffs:
+        print(t)
+    return abs_diff, rel_diff
+
 # def get_gpu_utilization(device=0):
 #     """
 #     Returns current GPU utilization %.

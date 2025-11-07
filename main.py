@@ -14,7 +14,7 @@ from monitor import get_system_stats, measure_dataloader_speed
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 import copy
-from monitor import TrainLogger
+from monitor import TrainLogger, ema_sanity_checks
 
 def unzip_tiny_imagenet(zip_path, extract_to):
     """
@@ -223,10 +223,18 @@ def main(data_path="./content/tiny-imagenet-200",
         start_epoch = 1
         if os.path.exists(resume_weights_file):
             # Just load the model weights
-            print(f"Starting fresh scheduler for fine-tuning {finetuning_run}")
+            print(f"Starting fresh scheduler for fine-tuning {finetuning_run}, loading previous weights")
             checkpoint = torch.load(resume_weights_file, map_location=device)
             model.load_state_dict(checkpoint["model_state"])
             print(f"Loaded {resume_weights_file} without loading optimizer/scheduler/scaler states")
+            ema_model.load_state_dict(model.state_dict())
+            for p in ema_model.parameters():
+                p.requires_grad_(False)
+
+    #If abs_diff is near 0 and rel_diff << 1e-3 → EMA is correctly initialized. If ema_requires_grad is True, set it to false for EMA params
+    abs_diff, rel_diff = ema_sanity_checks(model, ema_model, ema_decay)
+
+
     # Create a logger
     tlogger = TrainLogger(log_dir="./logs", experiment_name=experiment_name)
 
