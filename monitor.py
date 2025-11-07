@@ -223,20 +223,33 @@ def measure_dataloader_speed(dataloader, num_batches=100):
     return avg_time
 
 
-def log_ema_diff(model, ema_model, step, pbar=None):
-    """Compute and print EMA vs model parameter difference."""
-    diff = 0.0
-    if ema_model is not None:
-        with torch.no_grad():
-            for p, q in zip(model.parameters(), ema_model.parameters()):
-                diff += torch.sum(torch.abs(p - q)).item()
+def log_ema_diff(model, ema_model, step, pbar=None, topk_layers=3):
+    """Logs both absolute and relative EMA differences."""
+    if ema_model is None:
+        return 0.0, 0.0
 
-        msg = f"[EMA Debug] {step} | Param diff: {diff:.6f}"
-        if pbar:
-            pbar.write(msg)
+    abs_diff, abs_ref = 0.0, 0.0
+    layer_diffs = []
+
+    with torch.no_grad():
+        for i, (p, q) in enumerate(zip(model.parameters(), ema_model.parameters())):
+            d = torch.sum(torch.abs(p - q)).item()
+            abs_diff += d
+            abs_ref += torch.sum(torch.abs(p)).item()
+            if i < topk_layers:
+                layer_diffs.append(d)
+
+    rel_diff = abs_diff / (abs_ref + 1e-8)
+    msg = (f"[EMA Debug] Step {step} | AbsDiff: {abs_diff:.3f} | "
+           f"RelDiff: {rel_diff:.6e} | First {topk_layers} layer diffs: "
+           f"{[round(x, 3) for x in layer_diffs]}")
+
+    if pbar:
+        pbar.write(msg)
+    else:
         print(msg)
 
-    return diff
+    return abs_diff, rel_diff
 
 
 # def get_gpu_utilization(device=0):

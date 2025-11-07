@@ -7,7 +7,7 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, val_loop, get_sgd_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
+from train import train_loop, val_loop, get_sgd_optimizer, get_adam_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
 from data_augmentation import get_cutmix_prob
 from monitor import get_system_stats, measure_dataloader_speed
@@ -151,11 +151,17 @@ def main(data_path="./content/tiny-imagenet-200",
     else:
         weight_decay = 5e-4
         nesterov = False
-    optimizer = get_sgd_optimizer(model, learning_rate, momentum=0.9, weight_decay=weight_decay, nesterov=nesterov)
+
+    if finetuning_run: # Setting Adam by default -- allow override
+        optimizer = get_adam_optimizer(model, learning_rate)
+        print(f"Optimizer=AdamW")
+    else:
+        optimizer = get_sgd_optimizer(model, learning_rate, momentum=0.9, weight_decay=weight_decay, nesterov=nesterov)
+        print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay={weight_decay}), nesterov={nesterov}")
 
     accumulation_steps = 4
     steps_per_epoch = len(train_loader) // accumulation_steps
-    print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay={weight_decay}), nesterov={nesterov}")
+
     print(f"  - Max LR: {learning_rate}")
     print(f"  - Total steps: {steps_per_epoch * num_epochs}")
 
@@ -195,6 +201,7 @@ def main(data_path="./content/tiny-imagenet-200",
     start_epoch = 1
     resume_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
     best_weights_file = os.path.join(checkpoints_dir, "best.pth")
+    cutmix_base_prob = 0.1 if finetuning_run else 0.5
 
     # Create Scaler if mixed precision is true
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
@@ -227,7 +234,7 @@ def main(data_path="./content/tiny-imagenet-200",
         # Training
         print("\n🔄 Training...")
         stats = get_system_stats()
-        current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=0.2, mode=mode)
+        current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
@@ -410,15 +417,15 @@ if __name__ == "__main__":
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=368, #368,#384 # Increase if you have enough GPU memory
+        batch_size=352, #368,#384 # Increase if you have enough GPU memory
         num_epochs=25,
-        learning_rate=0.03,
+        learning_rate=0.001,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run9-finetune-lr-aug",
+        experiment_name="Run10-finetune-lr-aug-adamw",
         resume_training=True,
         resume_weights_file="run5-epoch89.pth",
         finetuning_run=True

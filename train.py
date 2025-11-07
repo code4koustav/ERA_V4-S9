@@ -19,6 +19,17 @@ def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False
     return optimizer
 
 
+def get_adam_optimizer(model, lr):
+    base_lr = lr
+    backbone_lr = base_lr * 0.5  # half of that for pretrained layers
+
+    optimizer = torch.optim.AdamW([
+        {"params": model.backbone.parameters(), "lr": backbone_lr},
+        {"params": model.fc.parameters(), "lr": base_lr}
+    ], weight_decay=1e-4, betas=(0.9, 0.999))
+    return optimizer
+
+
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
     scheduler = OneCycleLR(
         optimizer,
@@ -39,7 +50,7 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
     return scheduler
 
 
-def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_epochs=2):
+def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_epochs=2, start_factor=0.01):
     # Fine-tuning scheduler: short warmup + cosine decay
 
     total_steps = num_epochs * steps_per_epoch
@@ -53,7 +64,7 @@ def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_
 
     warmup = LinearLR(
         optimizer,
-        start_factor=1/10, # start at 10% of base LR
+        start_factor=start_factor, # start at 1% of base LR
         total_iters=warmup_steps # number of scheduler.step() calls during warmup
     )
     cosine = CosineAnnealingLR(
