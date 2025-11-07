@@ -257,7 +257,8 @@ def main(data_path="./content/tiny-imagenet-200",
         # Validation
         print("\n🔍 Validating...")
         val_losses, val_acc = val_loop(
-            ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
+            # ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
+            model, device, val_loader, val_losses, val_acc, use_amp=use_amp
         )
         
         # Print epoch summary
