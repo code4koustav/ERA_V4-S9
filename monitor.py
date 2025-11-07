@@ -95,7 +95,7 @@ def get_post_clip_gradnorm(model):
     return post_clip_norm
 
 
-def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
+def print_diagnostics(pbar, model, scaler, batch_idx, use_amp, ema_model=None):
     """
     Print gradient diagnostics:
       - Total & max grad norms
@@ -107,10 +107,10 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
     grad_none_count = 0
     nan_layers, inf_layers, zero_layers = [], [], []
 
-    # Print system stats
-    stats = get_system_stats()
-    pbar.write(f"[Batch {batch_idx:05d}] CPU: {stats['cpu']:5.1f}% | RAM: {stats['ram']:5.1f}% | "
-          f"GPU: {stats['gpu']:5.1f}% | GPU-Mem: {stats['gpu_mem']:5.1f}%")
+    # # Print system stats
+    # stats = get_system_stats()
+    # pbar.write(f"[Batch {batch_idx:05d}] CPU: {stats['cpu']:5.1f}% | RAM: {stats['ram']:5.1f}% | "
+    #       f"GPU: {stats['gpu']:5.1f}% | GPU-Mem: {stats['gpu_mem']:5.1f}%")
 
 
     #Print Gradient norm for debugging. If grad norm ≈ 0 for many updates, learning is not happening.
@@ -137,26 +137,26 @@ def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
             grad_none_count += 1
             # Only print first few missing grads to avoid spam
             if grad_none_count <= 5:
-                pbar.write(f"{name:<40s} grad=None")
+                print(f"{name:<40s} grad=None")
 
     total_norm = total_norm_sq ** 0.5
-    pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
+    print(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
 
     # Print anomalies (if any)
     if nan_layers:
-        pbar.write(f"[Warning] NaN gradients in: {', '.join(nan_layers[:5])}{'...' if len(nan_layers) > 5 else ''}")
+        print(f"[Warning] NaN gradients in: {', '.join(nan_layers[:5])}{'...' if len(nan_layers) > 5 else ''}")
     if inf_layers:
-        pbar.write(f"[Warning] Inf gradients in: {', '.join(inf_layers[:5])}{'...' if len(inf_layers) > 5 else ''}")
+        print(f"[Warning] Inf gradients in: {', '.join(inf_layers[:5])}{'...' if len(inf_layers) > 5 else ''}")
     if zero_layers:
-        pbar.write(f"[Info] Zero gradients in: {', '.join(zero_layers[:5])}{'...' if len(zero_layers) > 5 else ''}")
+        print(f"[Info] Zero gradients in: {', '.join(zero_layers[:5])}{'...' if len(zero_layers) > 5 else ''}")
 
     if not (nan_layers or inf_layers or zero_layers):
-        pbar.write("[Grad Debug] No NaN/Inf/Zero gradients detected ✅")
+        print("[Grad Debug] No NaN/Inf/Zero gradients detected ✅")
 
     # AMP / GradScaler info
     if use_amp and scaler is not None:
         scale_val = scaler.get_scale()
-        pbar.write(f"[Grad Debug] GradScaler scale={scale_val:.1f}")
+        print(f"[Grad Debug] GradScaler scale={scale_val:.1f}")
     # else:
     #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
 
@@ -224,17 +224,19 @@ def measure_dataloader_speed(dataloader, num_batches=100):
 
 
 def log_ema_diff(model, ema_model, step, pbar=None):
-    # If EMA is working, this difference should start small and gradually increase, reflecting smoothing.
-    diffs = []
-    for p, ema_p in zip(model.parameters(), ema_model.parameters()):
-        diffs.append((p - ema_p).abs().mean().item())
-    mean_diff = sum(diffs) / len(diffs)
-    log_str = f"[Step {step}] EMA mean parameter diff: {mean_diff:.6f}"
-    if pbar is not None:
-        pbar.write(log_str)
-    else:
-        print(log_str)
-    return mean_diff
+    """Compute and print EMA vs model parameter difference."""
+    diff = 0.0
+    if ema_model is not None:
+        with torch.no_grad():
+            for p, q in zip(model.parameters(), ema_model.parameters()):
+                diff += torch.sum(torch.abs(p - q)).item()
+
+        msg = f"[EMA Debug] {step} | Param diff: {diff:.6f}"
+        if pbar:
+            pbar.write(msg)
+        print(msg)
+
+    return diff
 
 
 # def get_gpu_utilization(device=0):

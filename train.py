@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
-from monitor import get_system_stats, log_ema_diff, get_post_clip_gradnorm
+from monitor import get_system_stats, log_ema_diff, get_post_clip_gradnorm, print_diagnostics
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
@@ -197,12 +197,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             pbar.write(f"[Debug] Batch shape: {tuple(data.shape)}")
             pbar.write(f"[Debug] Label range: {target.min().item()}–{target.max().item()}")
 
-            if ema_model is not None:
-                diff = 0.0
-                for p, q in zip(model.parameters(), ema_model.parameters()):
-                    diff += torch.sum(torch.abs(p - q)).item()
-                pbar.write(f"[EMA Debug] Param diff after first step: {diff:.4f}")
-
         # Forward + loss under autocast
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
@@ -247,9 +241,11 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             # Update EMA model
             update_ema(model, ema_model, ema_decay)
 
-            # DEBUG: check EMA update
-            if batch_idx < 20 or batch_idx % 100 == 0:  # log every 100 batches
-                log_ema_diff(model, ema_model, step=batch_idx, pbar=pbar)
+            # Check EMA update. If EMA is working, this difference should start small and gradually increase, reflecting smoothing.
+            if batch_idx < 20 or batch_idx % 200 == 0:  # log every 100 batches
+                log_ema_diff(model, ema_model, step=batch_idx, pbar=None)
+                print_diagnostics(pbar, model, scaler, batch_idx, use_amp, ema_model)
+
 
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
