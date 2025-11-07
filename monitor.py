@@ -69,17 +69,30 @@ class TrainLogger:
                 ])
 
         if self.log_to_stdout:
-            msg = (f"Epoch:{epoch} Batch:{batch_idx} | "
-                   f"Loss:{batch_loss:.4f} Acc:{batch_acc:.4f} "
-                   f"LossEMA:{loss_ema:.4f} AccEMA:{acc_ema:.4f} "
-                   f"LR:{lr:.2e} GradNorm:{grad_norm:.2f} "
-                   f"GPU:{gpu_util if gpu_util is not None else 'N/A'} "
-                   f"CPU:{cpu_util if cpu_util is not None else 'N/A'} "
-                   f"RAM:{ram_util if ram_util is not None else 'N/A'}")
-            print(msg)
+            # log every x batches
+            if batch_idx % 100 == 0:
+                msg = (f"Epoch:{epoch} Batch:{batch_idx} | "
+                       f"Loss:{batch_loss:.4f} Acc:{batch_acc:.4f} "
+                       f"LR:{lr:.2e} GradNorm:{grad_norm if grad_norm is not None else 'N/A'} "
+                       f"GPU:{gpu_util if gpu_util is not None else 'N/A'} "
+                       f"CPU:{cpu_util if cpu_util is not None else 'N/A'} "
+                       f"RAM:{ram_util if ram_util is not None else 'N/A'}")
+                print(msg)
 
     def info(self):
         return f"Logging to {self.log_path}"
+
+
+
+def get_post_clip_gradnorm(model):
+    # Compute post-clip norm for logging
+    post_clip_norm = 0.0
+    for p in model.parameters():
+        if p.grad is not None:
+            param_norm = p.grad.data.norm(2)
+            post_clip_norm += param_norm.item() ** 2
+    post_clip_norm = post_clip_norm ** 0.5
+    return post_clip_norm
 
 
 def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):

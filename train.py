@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
-from monitor import print_diagnostics, get_system_stats, log_ema_diff
+from monitor import get_system_stats, log_ema_diff, get_post_clip_gradnorm
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
@@ -120,6 +120,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     global_step = 0
     gpu_utils = []
     optimizer.zero_grad(set_to_none=True)
+    pre_clip_norm = 0
+    post_clip_norm = 0
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -176,7 +178,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
             # Add gradient clipping to prevent instability in the first few thousand steps.
             # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            pre_clip_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            post_clip_norm = get_post_clip_gradnorm(model)
 
             # ✅ Optimizer step (AMP vs non-AMP)
             if use_amp:
@@ -214,9 +217,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                 epoch=epoch,
                 batch_idx=batch_idx,
                 batch_loss=loss.item() * accumulation_steps,
-                acc=acc,
+                batch_acc=acc,
                 lr=current_lr,
-                grad_norm=grad_norm,
+                grad_norm=post_clip_norm,
                 gpu_util=stats["gpu"],
                 cpu_util=stats["cpu"],
                 ram_util=stats["ram"],
@@ -229,7 +232,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         pbar.set_description(
             f"Loss={loss.item() * accumulation_steps:.4f} | "
             f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f} | "
-            f"grad={grad_norm} | GPU Util={gpu_util} | GPU mem={gpu_mem}"
+            f"GradNorm(Pre/Post)={pre_clip_norm:.4f}/{post_clip_norm:.4f} | GPU Util={gpu_util} | GPU mem={gpu_mem}"
         )
 
     if gpu_utils:
