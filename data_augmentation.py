@@ -90,7 +90,7 @@ def get_train_transform(mode="full_train"):
             ),
             # Light color jittering, similar to validation distribution
             A.ColorJitter(
-                brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.3
+                brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.2
             ),
             A.RandomBrightnessContrast(p=0.2),
             # Tiny bit of regularization
@@ -103,7 +103,7 @@ def get_train_transform(mode="full_train"):
                     fill=(0, 0, 0),
                     fill_mask=None
                 ),
-            ], p=0.2),
+            ], p=0.15),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ToTensorV2()
         ])

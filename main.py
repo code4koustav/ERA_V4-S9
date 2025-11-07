@@ -234,7 +234,7 @@ def main(data_path="./content/tiny-imagenet-200",
         # Training
         print("\n🔄 Training...")
         stats = get_system_stats()
-        current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=0.5, mode=mode)
+        current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=0.2, mode=mode)
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
@@ -416,13 +416,13 @@ if __name__ == "__main__":
         zip_path="",
         batch_size=368, #368,#384 # Increase if you have enough GPU memory
         num_epochs=25,
-        learning_rate=0.01,
+        learning_rate=0.03,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
-        num_workers=8,
+        num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run6-finetuning",
+        experiment_name="Run9-finetune-lr-aug",
         resume_training=True,
         resume_weights_file="run5-epoch89.pth",
         finetuning_run=True
