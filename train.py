@@ -20,13 +20,10 @@ def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False
 
 
 def get_adam_optimizer(model, lr):
-    base_lr = lr
-    backbone_lr = base_lr * 0.5  # half of that for pretrained layers
+    #base_lr = lr
+    #backbone_lr = base_lr * 0.5  # half of that for pretrained layers
 
-    optimizer = torch.optim.AdamW([
-        {"params": model.backbone.parameters(), "lr": backbone_lr},
-        {"params": model.fc.parameters(), "lr": base_lr}
-    ], weight_decay=1e-4, betas=(0.9, 0.999))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.999))
     return optimizer
 
 

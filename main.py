@@ -221,7 +221,12 @@ def main(data_path="./content/tiny-imagenet-200",
 
     else:
         start_epoch = 1
-
+        if os.path.exists(resume_weights_file):
+            # Just load the model weights
+            print(f"Starting fresh scheduler for fine-tuning {finetuning_run}")
+            checkpoint = torch.load(resume_weights_file, map_location=device)
+            model.load_state_dict(checkpoint["model_state"])
+            print(f"Loaded {resume_weights_file} without loading optimizer/scheduler/scaler states")
     # Create a logger
     tlogger = TrainLogger(log_dir="./logs", experiment_name=experiment_name)
 
@@ -417,7 +422,7 @@ if __name__ == "__main__":
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=352, #368,#384 # Increase if you have enough GPU memory
+        batch_size=368, #368,#384 # Increase if you have enough GPU memory
         num_epochs=25,
         learning_rate=0.001,
         inspect_data=False,  # Set True to see dataset stats
@@ -426,7 +431,7 @@ if __name__ == "__main__":
         use_amp=True,
         hf_dataset=True,
         experiment_name="Run10-finetune-lr-aug-adamw",
-        resume_training=True,
+        resume_training=False,
         resume_weights_file="run5-epoch89.pth",
         finetuning_run=True
     )
