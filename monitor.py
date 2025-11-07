@@ -5,6 +5,8 @@ import time
 import matplotlib.pyplot as plt
 import torchvision
 import numpy as np
+import csv, os
+from datetime import datetime
 
 # Initialize NVIDIA Management Library
 pynvml.nvmlInit()
@@ -25,6 +27,44 @@ def get_system_stats():
         "gpu": gpu_util,
         "gpu_mem": gpu_mem_used,
     }
+
+
+# -----------------------------
+# Training logger class
+# -----------------------------
+class TrainLogger:
+    def __init__(self, log_dir="logs", experiment_name="train_run"):
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_path = os.path.join(log_dir, f"{experiment_name}_{timestamp}.csv")
+
+        # Write header
+        with open(self.log_path, mode='w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "epoch", "batch_idx", "batch_loss", "batch_acc", "loss_ema", "acc_ema",
+                "lr", "grad_norm", "gpu_util", "cpu_util", "ram_util", "gpu_mem"
+            ])
+
+    def log(self, epoch, batch_idx, batch_loss, batch_acc, loss_ema, acc_ema, lr,
+            grad_norm=None, gpu_util=None, cpu_util=None, ram_util=None, gpu_mem=None):
+        with open(self.log_path, mode='a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                epoch, batch_idx, batch_loss, batch_acc,
+                loss_ema if loss_ema is not None else "",
+                acc_ema if acc_ema is not None else "",
+                lr,
+                grad_norm if grad_norm is not None else "",
+                gpu_util if gpu_util is not None else "",
+                cpu_util if cpu_util is not None else "",
+                ram_util if ram_util is not None else "",
+                gpu_mem if gpu_mem is not None else "",
+
+            ])
+
+    def info(self):
+        return f"Logging to {self.log_path}"
 
 
 def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
@@ -155,22 +195,22 @@ def measure_dataloader_speed(dataloader, num_batches=100):
     return avg_time
 
 
-def get_gpu_utilization(device=0):
-    """
-    Returns current GPU utilization %.
-    Uses torch.cuda.utilization() if available (PyTorch 2.1+),
-    otherwise queries NVML via pynvml.
-    """
-    util = None
-    try:
-        # PyTorch 2.1+ API (fast)
-        util = torch.cuda.utilization(device)
-    except AttributeError:
-        try:
-            import pynvml
-            pynvml.nvmlInit()
-            handle = pynvml.nvmlDeviceGetHandleByIndex(device)
-            util = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
-        except Exception:
-            util = None
-    return util
+# def get_gpu_utilization(device=0):
+#     """
+#     Returns current GPU utilization %.
+#     Uses torch.cuda.utilization() if available (PyTorch 2.1+),
+#     otherwise queries NVML via pynvml.
+#     """
+#     util = None
+#     try:
+#         # PyTorch 2.1+ API (fast)
+#         util = torch.cuda.utilization(device)
+#     except AttributeError:
+#         try:
+#             import pynvml
+#             pynvml.nvmlInit()
+#             handle = pynvml.nvmlDeviceGetHandleByIndex(device)
+#             util = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+#         except Exception:
+#             util = None
+#     return util

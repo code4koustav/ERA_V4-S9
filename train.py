@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
-from monitor import print_diagnostics, get_gpu_utilization
+from monitor import print_diagnostics, get_system_stats
 
 
 def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
@@ -107,9 +107,16 @@ def update_ema(model, ema_model, decay):
             ema_p.data.mul_(decay).add_(p.data, alpha=1 - decay)
 
 
-def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
+def calculate_logger_ema(current, previous_ema, alpha=0.1):
+    """Exponential moving average update."""
+    if previous_ema is None:
+        return current
+    return alpha * current + (1 - alpha) * previous_ema
+
+
+def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, epoch,
                accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999,
-               current_cutmix_prob=0.5):
+               current_cutmix_prob=0.5, logger=None):
     """
     Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
@@ -120,17 +127,12 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     global_step = 0
     gpu_utils = []
     optimizer.zero_grad(set_to_none=True)
+    loss_ema = None
+    acc_ema = None
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     current_lr = optimizer.param_groups[0]["lr"]
-
-    num_debug_points = 5  # how many times to print diagnostics per epoch
-    debug_batches = set(
-        int(i * len(train_loader) / num_debug_points)
-        for i in range(num_debug_points)
-    )
-    pbar.write(f"[Debug setup] Diagnostics will run at batches: {sorted(debug_batches)}")
 
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
@@ -149,6 +151,12 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             pbar.write(f"[Debug] Batch shape: {tuple(data.shape)}")
             pbar.write(f"[Debug] Label range: {target.min().item()}–{target.max().item()}")
 
+            if ema_model is not None:
+                diff = 0.0
+                for p, q in zip(model.parameters(), ema_model.parameters()):
+                    diff += torch.sum(torch.abs(p - q)).item()
+                pbar.write(f"[EMA Debug] Param diff after first step: {diff:.4f}")
+
         # Forward + loss under autocast
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
@@ -166,7 +174,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         else:
             loss.backward()
 
-
         # Gradient accumulation step - Update weights only after accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1 == len(train_loader)):
             if batch_idx < 20: #log first N batch losses
@@ -176,21 +183,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             if use_amp:
                 scaler.unscale_(optimizer)
 
-            # 🧩 2️⃣ Gradient norm diagnostic every N steps
-            if batch_idx in debug_batches:
-                print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
-                pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
-                           f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
-                util = get_gpu_utilization()
-                if util is not None:
-                    gpu_utils.append(util)
-                    pbar.write(f"[GPU] Batch {batch_idx}: {util}% utilization")
-
             # Add gradient clipping to prevent instability in the first few thousand steps.
             # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
-            total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            if batch_idx in debug_batches:
-                pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
             # ✅ Optimizer step (AMP vs non-AMP)
             if use_amp:
@@ -217,10 +212,34 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         acc = 100.0 * correct / processed
         train_acc.append(acc)
 
+        # Update EMA metrics
+        # loss_ema = calculate_logger_ema(loss.item() * accumulation_steps, loss_ema, alpha=0.1)
+        # acc_ema = calculate_logger_ema(acc, acc_ema, alpha=0.1)
+
+        stats = get_system_stats()  # CPU, RAM, GPU
+        if logger:
+            logger.log(
+                epoch=epoch,
+                batch_idx=batch_idx,
+                batch_loss=loss.item() * accumulation_steps,
+                acc=acc,
+                loss_ema=loss_ema,
+                acc_ema=acc_ema,
+                lr=current_lr,
+                grad_norm=grad_norm,
+                gpu_util=stats["gpu"],
+                cpu_util=stats["cpu"],
+                ram_util=stats["ram"],
+                gpu_mem=stats["gpu_mem"],
+            )
+
         # Update tqdm
+        gpu_util = stats["gpu"] if stats["gpu"] is not None else "N/A"
+        gpu_mem = stats["gpu_mem"] if stats["gpu_mem"] is not None else "N/A"
         pbar.set_description(
             f"Loss={loss.item() * accumulation_steps:.4f} | "
-            f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f}"
+            f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f} | "
+            f"grad={grad_norm} | GPU Util={gpu_util} | GPU mem={gpu_mem}"
         )
 
     if gpu_utils:

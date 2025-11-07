@@ -14,6 +14,7 @@ from monitor import get_system_stats, measure_dataloader_speed
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 import copy
+from monitor import TrainLogger
 
 def unzip_tiny_imagenet(zip_path, extract_to):
     """
@@ -221,6 +222,9 @@ def main(data_path="./content/tiny-imagenet-200",
     # ✅ Create EMA *after* loading weights
     ema_model, ema_decay = create_ema_model(model)
 
+    # Create a logger
+    tlogger = TrainLogger(log_dir="./logs", experiment_name=experiment_name)
+
     for epoch in range(start_epoch, num_epochs + 1):
         start_time = time.time()
         print(f"\n{'='*70}")
@@ -233,8 +237,9 @@ def main(data_path="./content/tiny-imagenet-200",
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=0.5, mode=mode)
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-                                             accumulation_steps=accumulation_steps, use_amp=use_amp,
-                                             ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob)
+                                             epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
+                                             ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob,
+                                             logger=tlogger)
         
         # Validation
         print("\n🔍 Validating...")
@@ -268,6 +273,11 @@ def main(data_path="./content/tiny-imagenet-200",
         train_acc_epoch = train_acc[-1]
         val_loss_epoch = sum(val_losses[-len(val_loader):]) / len(val_loader)
         val_acc_epoch = val_acc[-1]
+
+        # Check for EMA drift
+        if epoch % 5 == 0:  # every few epochs
+            raw_val_losses, raw_val_acc = val_loop(model, device, val_loader, [], [], use_amp)
+            print(f"[Compare] Raw Acc: {raw_val_acc[-1]:.2f}%, EMA Acc: {val_acc[-1]:.2f}%")
 
         # Log to Tensorboard
         writer.add_scalar("Loss/train", train_loss_epoch, epoch)
