@@ -168,14 +168,14 @@ source ~/.bashrc
 
 ### Step 3.1 - Attach and Mount the previoous Data EBS Volume
 
-```commandline
+    ```commandline
     # Check the disk name for the 350GB disk
     lsblk
     sudo mkdir /Data
     sudo file -s /dev/nvme2n1
     sudo mount /dev/nvme2n1 /Data
     lsblk
-```   
+    ```   
 
 ### Step 3.2 - Mount the EC2 instance's SSD volume and copy Imagenet data there  
    Check the disk name for the EC2 instance's volume -- should be nvme1n1 usually
@@ -192,11 +192,13 @@ source ~/.bashrc
    sudo apt-get install -y rsync 
    mkdir /Imagenet/datasets_cache
    #cp -r /Data/datasets_cache /Imagenet
+   screen -S copy
+   
    sudo rsync -ah --info=progress2 --inplace /Data/datasets_cache/ /Imagenet/datasets_cache/
    ```   
    Copying took 20 mins  
 
-### Step 3 - Environment setup
+### Step 3.3 - Environment setup
 
 - Add the Huggingface Dataset cache directory to .bashrc. No need to set HF_HOME  
 ```
@@ -207,19 +209,19 @@ source ~/.bashrc
 ```
 
 - Virtual environment is at:
-   source my-venv/bin/activate 
+   source ~/my-venv/bin/activate 
 
  - Some python packages were installed after AMI image was created, so they got missed..
-```commandline
-   uv pip install albumentations   
-   uv pip install tensorboard
-   uv pip install psutil pynvml
-   uv pip install pyjpeg-turbo
+    ```commandline
+    uv pip install albumentations   
+    uv pip install tensorboard
+    uv pip install psutil pynvml
+    uv pip install pyjpeg-turbo
 
-  uv pip uninstall pillow
-  sudo apt update
-  sudo apt install -y libjpeg-dev zlib1g-dev libpng-dev # needs zlib
-  uv pip install --no-cache-dir pillow-simd
+    uv pip uninstall pillow
+    sudo apt update
+    sudo apt install -y libjpeg-dev zlib1g-dev libpng-dev # needs zlib
+    uv pip install --no-cache-dir pillow-simd
 
 #Optional, for JPEG acceleration
 sudo apt install libjpeg-turbo-progs
@@ -233,13 +235,16 @@ print(PIL.__version__)
 print(PIL.PILLOW_VERSION if hasattr(PIL, "PILLOW_VERSION") else "No legacy version attr")
 print("Pillow build features:", PIL.features.pilinfo())
 
+or
+
+uv pip list | grep pillow
 ```
 
  - Pull latest master on the git repo
  - Update hyperparams in main.py
  - Create checkpoints dir under /Data ebs volume
 
-### Step 4 - Start training
+### Step 3.4 - Start training
 
  - Start training inside screen/tmux session:
 ```commandline

@@ -44,6 +44,8 @@ def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_
 
     total_steps = num_epochs * steps_per_epoch
     warmup_steps = warmup_epochs * steps_per_epoch
+    tmax = total_steps - warmup_steps
+    eta_min = 1e-6
 
     # # manually set optimizer LR start (low warmup start) -- not needed, start_factor will take care of this
     # for g in optimizer.param_groups:
@@ -56,26 +58,33 @@ def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_
     )
     cosine = CosineAnnealingLR(
         optimizer,
-        T_max=total_steps - warmup_steps, # number of remaining updates
-        eta_min=1e-6
+        T_max=tmax, # number of remaining updates
+        eta_min=eta_min
     )
     scheduler = SequentialLR(
         optimizer,
         schedulers=[warmup, cosine],
         milestones=[warmup_steps] # switch to cosine after warmup
     )
-    return scheduler
+    return scheduler, tmax, warmup_steps, eta_min
 
 
-def save_checkpoint(model, optimizer, scaler, epoch, best_loss, epoch_val_loss, path, use_amp):
+def save_checkpoint(model, ema_model, optimizer, scheduler, scaler, epoch, best_loss, epoch_val_loss,
+                    path, use_amp, lr_scheduler_type, lr_scheduler_params):
     checkpoint = {
         "epoch": epoch,
         "model_state": model.state_dict(),
+        "ema_model_state": ema_model.state_dict(),
         "optimizer_state": optimizer.state_dict(),
         'best_val_loss': best_loss,
         'epoch_val_loss': epoch_val_loss,
+        "lr_scheduler_type": lr_scheduler_type,
+        "lr_scheduler_params": lr_scheduler_params,
         # Add any other relevant information like hyperparameters
     }
+
+    if hasattr(scheduler, "state_dict"):
+        checkpoint["scheduler_state"] = scheduler.state_dict()
 
     # Save AMP scaler state only if AMP is enabled
     if use_amp:
@@ -85,16 +94,60 @@ def save_checkpoint(model, optimizer, scaler, epoch, best_loss, epoch_val_loss, 
     print(f"✅ Checkpoint saved to {path}")
 
 
-def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
+def load_checkpoint(model, ema_model, optimizer, scheduler, scaler, path, device, use_amp,
+                    current_lr_type, current_lr_params, steps_per_epoch):
+    """
+    Load checkpoint safely. Detect LR scheduler mismatch to avoid optimizer/scheduler state errors.
+    Returns: start_epoch, best_loss
+    """
     checkpoint = torch.load(path, map_location=device)
-    model.load_state_dict(checkpoint["model_state"])
-    optimizer.load_state_dict(checkpoint["optimizer_state"])
-    best_loss = checkpoint['best_val_loss']
 
-    if use_amp and "scaler_state" in checkpoint:
-        scaler.load_state_dict(checkpoint["scaler_state"])
+    # Load model + EMA model weights
+    model.load_state_dict(checkpoint["model_state"])
+    if "ema_model_state" in checkpoint:
+        ema_model.load_state_dict(checkpoint["ema_model_state"])
+    else:
+        # First time: initialize EMA from main model
+        ema_model.load_state_dict(model.state_dict())
+
+    # --------------------------
+    # Detect LR scheduler mismatch
+    # --------------------------
+    checkpoint_lr_type = checkpoint.get("lr_scheduler_type")
+    checkpoint_lr_params = checkpoint.get("lr_scheduler_params", {})
+    lr_mismatch = (checkpoint_lr_type != current_lr_type) or (checkpoint_lr_params != current_lr_params)
+    if lr_mismatch:
+        print(f"[Resume] LR scheduler mismatch detected: checkpoint={checkpoint_lr_type}, current={current_lr_type}")
+        print(f"[Resume] Loaded {path} weights, Skipping optimizer/scaler/scheduler state loading.")
+        load_opt_scaler_scheduler = False
+    else:
+        load_opt_scaler_scheduler = True
 
     start_epoch = checkpoint.get("epoch", 0) + 1
+    best_loss = checkpoint.get('best_val_loss', float('inf'))
+
+    # --------------------------
+    # Load optimizer/scaler/scheduler if safe
+    # --------------------------
+    if load_opt_scaler_scheduler:
+        optimizer.load_state_dict(checkpoint["optimizer_state"])
+        if use_amp and "scaler_state" in checkpoint:
+            scaler.load_state_dict(checkpoint["scaler_state"])
+            print(f"[Resume] Scaler state restored from checkpoint for AMP.")
+
+        if "scheduler_state" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler_state"])
+            print(f"[Resume] Scheduler state restored from checkpoint.")
+        else:
+            # Fast-forward scheduler to current epoch so it resumes from the correct LR step
+            completed_steps = start_epoch * steps_per_epoch
+            for _ in range(completed_steps):
+                scheduler.step()
+            print(f"[Resume] Scheduler fast-forwarded to epoch {start_epoch}, step {completed_steps}.")
+
+        print(f"[Resume] Current LR = {optimizer.param_groups[0]['lr']:.6f}")
+
+
     print(f"✅ Checkpoint loaded. Resuming from epoch {start_epoch}")
 
     return start_epoch, best_loss
