@@ -185,13 +185,15 @@ def maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch
                 pbar.write("✓ Updated training augmentations for fine-tuning phase.")
 
         # --- Reduce LR by 2× and floor it at min_lr ---
-        for param_group in optimizer.param_groups:
-            old_lr = param_group["lr"]
-            new_lr = max(old_lr * 0.5, min_lr)
-            param_group["lr"] = new_lr
-        print(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
-        if pbar:
-            pbar.write(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
+        # Only do this if switch_epoch is not too low. otherwise run is too short
+        if switch_epoch >= 15:
+            for param_group in optimizer.param_groups:
+                old_lr = param_group["lr"]
+                new_lr = max(old_lr * 0.5, min_lr)
+                param_group["lr"] = new_lr
+            print(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
+            if pbar:
+                pbar.write(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
 
 
 def update_ema(model, ema_model, decay):

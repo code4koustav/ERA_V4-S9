@@ -64,7 +64,8 @@ def main(data_path="./content/tiny-imagenet-200",
          hf_dataset=True,
          experiment_name="MyTrainRun",
          resume_weights_file="best.pth",
-         finetuning_run=False
+         finetuning_run=False,
+         switch_epoch=20
          ):
     """
     Main function to run the complete training pipeline
@@ -76,6 +77,15 @@ def main(data_path="./content/tiny-imagenet-200",
         num_epochs: Number of epochs to train (1-2 for testing)
         learning_rate: Maximum learning rate for OneCycleLR
         inspect_data: Whether to show dataset inspection
+        checkpoints_dir: Main directory where checkpoins will be saved
+        use_amp: Flag to turn on mixed precision
+        hf_dataset: Selects huggingface specific dataloader if True
+        experiment_name: Name of the training run. Weights will be saved under this subdir, as will tensorboard logs
+        resume_training: To resume training or not. If true, optimizer/scheduler/scaler states will be loaded.
+                         If false but if resume_weights_file is present, only weights will be loaded
+        resume_weights_file: checkpoint weights file to load the model
+        finetuning_run: Flag for finetuning run - use different optimizer, LR strategy, augmentations
+        switch_epoch: For more granular control of finetuning run. Epoch at which we switch to even lesser augmentations and even lower lr start
     """
     print("="*70)
     print("🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet")
@@ -170,10 +180,15 @@ def main(data_path="./content/tiny-imagenet-200",
         # Learning Rate Strategy while finetuning: warmup + cosine annealing
         # For finetuning run, use learning_rate=0.01. Should see val accuracy jump earlier and rise past 70% within ~10 epochs.
         warmup_epochs = num_epochs // 10
-        scheduler, tmax_steps, warmup_steps, eta_min = get_cosine_scheduler(optimizer, learning_rate, num_epochs, steps_per_epoch, warmup_epochs)
+        start_factor = 0.01
+        if warmup_epochs == 0 or switch_epoch <= 5:
+            warmup_epochs = 1
+            start_factor = 0.1
+        scheduler, tmax_steps, warmup_steps, eta_min = get_cosine_scheduler(optimizer, learning_rate, num_epochs,
+                                                                            steps_per_epoch, warmup_epochs, start_factor)
         lr_scheduler_type = "CosineAnnealingLR",
         lr_scheduler_params = {"T_max": tmax_steps, "warmup_steps": warmup_steps, "eta_min": eta_min}
-        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs")
+        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs, start_factor={start_factor}")
     else:
         # Learning Rate Strategy while training from scratch: OneCycleLR
         # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
@@ -253,7 +268,7 @@ def main(data_path="./content/tiny-imagenet-200",
 
         if finetuning_run:
             # During final epochs of finetuning run, turn off augmentations except basic ones, and reduce LR even further
-            maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=20, min_lr=2e-5, pbar=None)
+            maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=switch_epoch, min_lr=2e-5, pbar=None)
             current_cutmix_prob = 0
 
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
@@ -434,22 +449,41 @@ if __name__ == "__main__":
     # )
 
 
+    # # For g5.2xlarge. Finetuning run with previous best weights
+    # model, *metrics = main(
+    #     data_path="",
+    #     zip_path="",
+    #     batch_size=368, #368,#384 # Increase if you have enough GPU memory
+    #     num_epochs=25,
+    #     learning_rate=0.001,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="/Data/checkpoints",
+    #     num_workers=12,
+    #     use_amp=True,
+    #     hf_dataset=True,
+    #     experiment_name="Run10-finetune-lr-aug-adamw",
+    #     # resume_training=False,
+    #     # resume_weights_file="run5-epoch89.pth",
+    #     resume_training=True,
+    #     resume_weights_file="best.pth",
+    #     finetuning_run=True
+    # )
+
     # For g5.2xlarge. Finetuning run with previous best weights
     model, *metrics = main(
         data_path="",
         zip_path="",
         batch_size=368, #368,#384 # Increase if you have enough GPU memory
-        num_epochs=25,
-        learning_rate=0.001,
+        num_epochs=5,
+        learning_rate=5e-5,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run10-finetune-lr-aug-adamw",
-        # resume_training=False,
-        # resume_weights_file="run5-epoch89.pth",
-        resume_training=True,
-        resume_weights_file="best.pth",
-        finetuning_run=True
+        experiment_name="Run11-more-finetune",
+        resume_training=False, # Don't load optimizer/schduler states, only model weights
+        resume_weights_file="run10-best.pth",
+        finetuning_run=True,
+        switch_epoch=1
     )
