@@ -72,6 +72,9 @@
 - Another bad run.  
 - **Next steps:** Add diagnostics and recheck code.
 
+**Logs:**
+[Training Logs](logs/imagenet/run4a-without-amp.log)
+
 ---
 
 ## 5. Run4 — *lr-fixes*
@@ -96,6 +99,8 @@
 - ~40% validation accuracy in 25 epochs (during LR warmup).  
 - Training slowed down after epoch 50.  
 - Good gap between train and val accuracy due to heavy augmentations.
+
+[Training Logs](logs/imagenet/run5a-resume-with-amp.log)
 
 **In hindsight:**  
 Should have started with LR = 0.1, fewer epochs (≈ 50), and longer warmup.
@@ -123,6 +128,10 @@ Should have started with LR = 0.1, fewer epochs (≈ 50), and longer warmup.
 
 **In hindsight:**  
 This run and the previous run should have been combined into a single run of 50 epochs,  with LR = 0.1 and mixed precision. Heavier augmentations (Cutmix and Mixup) should have been added from the start
+
+**Tensorboard Train/Val Accuracy Graphs**  
+
+<img src="logs/imagenet/run4-run5 graphs.png" width="520">
 
 ---
 
