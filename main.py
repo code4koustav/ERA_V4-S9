@@ -7,11 +7,14 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, val_loop, get_lr_scheduler, load_checkpoint, save_checkpoint
+from train import train_loop, val_loop, get_sgd_optimizer, get_adam_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
 from utils import InspectImage
+from data_augmentation import get_cutmix_prob
+from monitor import get_system_stats, measure_dataloader_speed
 from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
-
+import copy
+from monitor import TrainLogger, ema_sanity_checks
 
 def unzip_tiny_imagenet(zip_path, extract_to):
     """
@@ -38,6 +41,15 @@ def unzip_tiny_imagenet(zip_path, extract_to):
     return True
 
 
+def create_ema_model(model):
+    # Create a copy of the model and update it with EMA weights
+    ema_decay = 0.9999
+    ema_model = copy.deepcopy(model)
+    for param in ema_model.parameters():
+        param.requires_grad_(False)
+    return ema_model, ema_decay
+
+
 def main(data_path="./content/tiny-imagenet-200", 
          zip_path="./content/tiny-imagenet.zip",
          batch_size=128, 
@@ -50,7 +62,8 @@ def main(data_path="./content/tiny-imagenet-200",
          use_amp=True,
          hf_dataset=True,
          experiment_name="MyTrainRun",
-         resume_weights_file="best.pth"
+         resume_weights_file="best.pth",
+         finetuning_run=False
          ):
     """
     Main function to run the complete training pipeline
@@ -87,8 +100,13 @@ def main(data_path="./content/tiny-imagenet-200",
     # ====== STEP 2: Load Data ======
     print(f"\n[STEP 2/6] Loading dataset and creating data loaders...")
     print(f"  - Batch size: {batch_size}, num_workers: {num_workers}")
-    # train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size,train_transform=True, val_transform=True)
-    train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True, val_transform=True, num_workers=num_workers)
+    mode = "finetune" if finetuning_run else "full_train" # Full Training from scratch, or finetuning run
+    if hf_dataset:
+        train_loader, val_loader = generate_hf_train_val_loader(batch_size=batch_size, train_transform=True,
+                                                                val_transform=True, num_workers=num_workers, mode=mode)
+    else:
+        train_loader, val_loader = generate_train_val_loader(data_path, batch_size=batch_size, train_transform=True,
+                                                             val_transform=True, num_workers=num_workers, mode=mode)
     print(f"✓ Train loader: {len(train_loader.dataset)} images, {len(train_loader)} batches")
     print(f"✓ Val loader: {len(val_loader.dataset)} images, {len(val_loader)} batches")
     
@@ -100,6 +118,11 @@ def main(data_path="./content/tiny-imagenet-200",
         inspector.inspect_loader("Training Set")
     else:
         print("\n[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)")
+
+    print("🔍 Profiling DataLoader speed before training ...")
+    # If it’s <0.05s per batch → great. If >0.2s → GPU will likely starve at times.
+    avg_time = measure_dataloader_speed(train_loader, num_batches=200)
+    print(f"✅ Avg. DataLoader batch time: {avg_time:.4f}s\n")
     
     # ====== STEP 4: Initialize Model ======
     print(f"\n[STEP 4/6] Initializing ResNet50 model...")
@@ -120,30 +143,50 @@ def main(data_path="./content/tiny-imagenet-200",
     
     # ====== STEP 5: Setup Training (Optimizer + LR Scheduler) ======
     print(f"\n[STEP 5/6] Setting up optimizer and LR scheduler...")
-    
-    # Optimizer: SGD with momentum
-    optimizer = optim.SGD(model.parameters(), 
-                         lr=learning_rate, 
-                         momentum=0.9, 
-                         weight_decay=5e-4)
 
-    # Learning Rate Strategy: OneCycleLR
-    # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
-    # effectively making the model step fewer times. So LR schedule runs too fast relative to optimization steps and needs to be handled
+    # Optimizer: SGD with momentum
+    if finetuning_run:
+        weight_decay = 1e-4
+        nesterov = True
+    else:
+        weight_decay = 5e-4
+        nesterov = False
+
+    if finetuning_run: # Setting Adam by default -- allow override
+        optimizer = get_adam_optimizer(model, learning_rate)
+        print(f"Optimizer=AdamW")
+    else:
+        optimizer = get_sgd_optimizer(model, learning_rate, momentum=0.9, weight_decay=weight_decay, nesterov=nesterov)
+        print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay={weight_decay}), nesterov={nesterov}")
+
     accumulation_steps = 4
     steps_per_epoch = len(train_loader) // accumulation_steps
-    scheduler = get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate)
-    
-    print(f"✓ Optimizer: SGD (lr={learning_rate}, momentum=0.9, weight_decay=5e-4)")
-    print(f"✓ LR Scheduler: OneCycleLR")
+
     print(f"  - Max LR: {learning_rate}")
     print(f"  - Total steps: {steps_per_epoch * num_epochs}")
 
-    # --- Diagnostic: check warmup length ---
-    total_steps = getattr(scheduler, "total_steps", num_epochs * steps_per_epoch)
-    pct_start = getattr(scheduler, "pct_start", 0.08)  # default to your chosen warmup %
-    warmup_steps = int(total_steps * pct_start)
-    print(f"Total steps: {total_steps:,}, Warmup steps: {warmup_steps:,} ({pct_start*100:.1f}% of training)")
+    if finetuning_run:
+        # Learning Rate Strategy while finetuning: warmup + cosine annealing
+        # For finetuning run, use learning_rate=0.01. Should see val accuracy jump earlier and rise past 70% within ~10 epochs.
+        warmup_epochs = num_epochs // 10
+        scheduler, tmax_steps, warmup_steps, eta_min = get_cosine_scheduler(optimizer, learning_rate, num_epochs, steps_per_epoch, warmup_epochs)
+        lr_scheduler_type = "CosineAnnealingLR",
+        lr_scheduler_params = {"T_max": tmax_steps, "warmup_steps": warmup_steps, "eta_min": eta_min}
+        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs")
+    else:
+        # Learning Rate Strategy while training from scratch: OneCycleLR
+        # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
+        # effectively making the model step fewer times. So LR schedule runs too fast relative to optimization steps and needs to be handled
+        scheduler = get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate)
+
+        # --- Diagnostic: check warmup length ---
+        print(f"✓ LR Scheduler: OneCycleLR")
+        total_steps = getattr(scheduler, "total_steps", num_epochs * steps_per_epoch)
+        pct_start = getattr(scheduler, "pct_start", 0.08)  # default to your chosen warmup %
+        warmup_steps = int(total_steps * pct_start)
+        lr_scheduler_type = "OneCycleLR",
+        lr_scheduler_params = {"max_lr": learning_rate, "warmup_steps": warmup_steps, "epochs": num_epochs, "steps_per_epoch": steps_per_epoch }
+        print(f"Total steps: {total_steps:,}, Warmup steps: {warmup_steps:,} ({pct_start*100:.1f}% of training)")
 
     # ====== STEP 6: Training Loop ======
     print(f"\n[STEP 6/6] Starting training...")
@@ -155,27 +198,45 @@ def main(data_path="./content/tiny-imagenet-200",
     val_losses = []
     val_acc = []
     best_loss = float('inf')
-    best_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
+    start_epoch = 1
+    resume_weights_file = os.path.join(checkpoints_dir, resume_weights_file)
+    best_weights_file = os.path.join(checkpoints_dir, "best.pth")
+    cutmix_base_prob = 0.1 if finetuning_run else 0.5
 
     # Create Scaler if mixed precision is true
     scaler = GradScaler(enabled=use_amp)  # handles scaling automatically
 
+    # ✅ Create EMA model. If resuming training, ema model state will be loaded
+    ema_model, ema_decay = create_ema_model(model)
+
     # Tensorboard writer
     writer = SummaryWriter(f'/Data/tf_runs/{experiment_name}')  # or simply SummaryWriter()
 
-    if resume_training and os.path.exists(best_weights_file):
-        # Resume from best weights, or from last epoch?
-        start_epoch, best_loss = load_checkpoint(model, optimizer, scaler, best_weights_file, device, use_amp)
+    if resume_training and os.path.exists(resume_weights_file):
+        # Resume from best weights, or from last epoch. Handle LR/scheduler changes correctly
+        start_epoch, best_loss = load_checkpoint(
+            model, ema_model, optimizer, scheduler, scaler, resume_weights_file, device=device, use_amp=use_amp,
+            current_lr_type=lr_scheduler_type, current_lr_params=lr_scheduler_params, steps_per_epoch=steps_per_epoch
+        )
 
-        # Fast-forward scheduler so it resumes from the correct LR step
-        completed_steps = start_epoch * steps_per_epoch
-        for _ in range(completed_steps):
-            scheduler.step()
-        print(f"[Resume] Scheduler fast-forwarded to epoch {start_epoch}, step {completed_steps}.")
-        print(f"[Resume] Current LR = {optimizer.param_groups[0]['lr']:.6f}")
     else:
         start_epoch = 1
+        if os.path.exists(resume_weights_file):
+            # Just load the model weights
+            print(f"Starting fresh scheduler for fine-tuning {finetuning_run}, loading previous weights")
+            checkpoint = torch.load(resume_weights_file, map_location=device)
+            model.load_state_dict(checkpoint["model_state"])
+            print(f"Loaded {resume_weights_file} without loading optimizer/scheduler/scaler states")
+            ema_model.load_state_dict(model.state_dict())
+            for p in ema_model.parameters():
+                p.requires_grad_(False)
 
+    #If abs_diff is near 0 and rel_diff << 1e-3 → EMA is correctly initialized. If ema_requires_grad is True, set it to false for EMA params
+    abs_diff, rel_diff = ema_sanity_checks(model, ema_model, ema_decay)
+
+
+    # Create a logger
+    tlogger = TrainLogger(log_dir="./logs", experiment_name=experiment_name)
 
     for epoch in range(start_epoch, num_epochs + 1):
         start_time = time.time()
@@ -185,12 +246,18 @@ def main(data_path="./content/tiny-imagenet-200",
         
         # Training
         print("\n🔄 Training...")
+        stats = get_system_stats()
+        current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
+        print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-                                             accumulation_steps=accumulation_steps, use_amp=use_amp)
+                                             epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
+                                             ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob,
+                                             logger=tlogger)
         
         # Validation
         print("\n🔍 Validating...")
         val_losses, val_acc = val_loop(
+            # ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
             model, device, val_loader, val_losses, val_acc, use_amp=use_amp
         )
         
@@ -206,12 +273,18 @@ def main(data_path="./content/tiny-imagenet-200",
         if val_losses[-1] < best_loss:
             best_loss = val_losses[-1]
             print(f"Validation loss improved to {best_loss:.4f}. Saving model weights to {best_weights_file}")
-            save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], best_weights_file, use_amp)
+            # save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], best_weights_file, use_amp)
+            save_checkpoint(model, ema_model, optimizer, scheduler, scaler, epoch, best_loss, val_losses[-1],
+                    best_weights_file, use_amp, lr_scheduler_type, lr_scheduler_params)
+
 
         # Save every epoch as well, for backup
         epoch_weights_file = os.path.join(checkpoints_dir, f"epoch-{epoch}.pth")
         print(f"Saving epoch weights: {epoch_weights_file}")
-        save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], epoch_weights_file, use_amp)
+        # save_checkpoint(model, optimizer, scaler, epoch, best_loss, val_losses[-1], epoch_weights_file, use_amp)
+        save_checkpoint(model, ema_model, optimizer, scheduler, scaler, epoch, best_loss, val_losses[-1],
+                        epoch_weights_file, use_amp, lr_scheduler_type, lr_scheduler_params)
+        torch.save(ema_model.state_dict(), f"epoch-{epoch}-ema.pth")
 
         # Aggregate epoch metrics
         train_loss_epoch = sum(train_losses[-len(train_loader):]) / len(train_loader)
@@ -219,11 +292,21 @@ def main(data_path="./content/tiny-imagenet-200",
         val_loss_epoch = sum(val_losses[-len(val_loader):]) / len(val_loader)
         val_acc_epoch = val_acc[-1]
 
+        # Check for EMA drift
+        if epoch % 5 == 0:  # every few epochs
+            raw_val_losses, raw_val_acc = val_loop(model, device, val_loader, [], [], use_amp)
+            print(f"[Compare] Raw Acc: {raw_val_acc[-1]:.2f}%, EMA Acc: {val_acc[-1]:.2f}%")
+
         # Log to Tensorboard
         writer.add_scalar("Loss/train", train_loss_epoch, epoch)
         writer.add_scalar("Accuracy/train", train_acc_epoch, epoch)
         writer.add_scalar("Loss/val", val_loss_epoch, epoch)
         writer.add_scalar("Accuracy/val", val_acc_epoch, epoch)
+
+        # Log these from inside training loop for better granularity
+        writer.add_scalar("System/CPU_Usage", stats["cpu"], epoch)
+        writer.add_scalar("System/GPU_Usage", stats["gpu"], epoch)
+        writer.add_scalar("System/GPU_Mem", stats["gpu_mem"], epoch)
 
         # Log learning rate
         for i, param_group in enumerate(optimizer.param_groups):
@@ -255,9 +338,8 @@ if __name__ == "__main__":
     gc.collect()
 
     # Set memory fraction (use only 80% of GPU memory)
-    torch.cuda.set_per_process_memory_fraction(0.7)
+    torch.cuda.set_per_process_memory_fraction(0.85)
 
-   
     # Enable memory efficient settings
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = False
@@ -326,20 +408,39 @@ if __name__ == "__main__":
     # )
 
 
-    # For g5.2xlarge. Resuming previous run from epoch67 -- with aMP
-    # Keep LR and scheduler params same, batch size can be changed
+    # # For g5.2xlarge. Resuming previous run from epoch67 -- with aMP
+    # # Keep LR and scheduler params same, batch size can be changed
+    # model, *metrics = main(
+    #     data_path="",
+    #     zip_path="",
+    #     batch_size=352, #368,#384 # Increase if you have enough GPU memory
+    #     num_epochs=90,
+    #     learning_rate=0.05,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="/Data/checkpoints",
+    #     num_workers=16,
+    #     use_amp=True,
+    #     hf_dataset=True,
+    #     experiment_name="Run5-amp-epoch67",
+    #     resume_training=True,
+    #     resume_weights_file="run4-nonAMP_epoch66.pth"
+    # )
+
+
+    # For g5.2xlarge. Finetuning run with previous best weights
     model, *metrics = main(
         data_path="",
         zip_path="",
-        batch_size=352, #368,#384 # Increase if you have enough GPU memory
-        num_epochs=90,
-        learning_rate=0.05,
+        batch_size=368, #368,#384 # Increase if you have enough GPU memory
+        num_epochs=25,
+        learning_rate=0.001,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
-        num_workers=16,
+        num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run5-amp-epoch67",
-        resume_training=True,
-        resume_weights_file="run4-nonAMP_epoch66.pth"
+        experiment_name="Run10-finetune-lr-aug-adamw",
+        resume_training=False,
+        resume_weights_file="run5-epoch89.pth",
+        finetuning_run=True
     )
