@@ -7,7 +7,8 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, val_loop, get_sgd_optimizer, get_adam_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
+from train import train_loop, val_loop, get_sgd_optimizer, get_adam_optimizer, get_lr_scheduler, get_cosine_scheduler, \
+    load_checkpoint, save_checkpoint, maybe_switch_to_fine_tune_phase
 from utils import InspectImage
 from data_augmentation import get_cutmix_prob
 from monitor import get_system_stats, measure_dataloader_speed
@@ -249,6 +250,12 @@ def main(data_path="./content/tiny-imagenet-200",
         stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
+
+        if finetuning_run:
+            # During final epochs of finetuning run, turn off augmentations except basic ones, and reduce LR even further
+            maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=20, min_lr=2e-5, pbar=None)
+            current_cutmix_prob = 0
+
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
                                              ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob,
@@ -440,7 +447,9 @@ if __name__ == "__main__":
         use_amp=True,
         hf_dataset=True,
         experiment_name="Run10-finetune-lr-aug-adamw",
-        resume_training=False,
-        resume_weights_file="run5-epoch89.pth",
+        # resume_training=False,
+        # resume_weights_file="run5-epoch89.pth",
+        resume_training=True,
+        resume_weights_file="best.pth",
         finetuning_run=True
     )

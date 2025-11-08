@@ -109,6 +109,18 @@ def get_train_transform(mode="full_train"):
         ])
 
 
+def get_late_stage_transforms():
+    """Light augmentations for late-stage fine-tuning."""
+    return A.Compose([
+        A.Resize(256, 256),
+        A.CenterCrop(224, 224),
+        A.HorizontalFlip(p=0.5),
+        A.Normalize(mean=(0.485, 0.456, 0.406),
+                    std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
+
 def get_val_transform():
     return A.Compose([
         # Resize smaller edge to 256 and preserve aspect ratio

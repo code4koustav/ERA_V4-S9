@@ -4,7 +4,7 @@ from torch.optim.lr_scheduler import OneCycleLR
 from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
-from data_augmentation import mixup_cutmix_data
+from data_augmentation import mixup_cutmix_data, get_late_stage_transforms
 from monitor import get_system_stats, log_ema_diff, get_post_clip_gradnorm, print_diagnostics
 
 
@@ -159,6 +159,39 @@ def load_checkpoint(model, ema_model, optimizer, scheduler, scaler, path, device
     print(f"✅ Checkpoint loaded. Resuming from epoch {start_epoch}")
 
     return start_epoch, best_loss
+
+
+def maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=20, min_lr=2e-5, pbar=None):
+    """
+    Dynamically switch to fine-tune phase:
+      - lighter augmentations
+      - lower LR
+      (EMA intentionally disabled for stability)
+    """
+
+    if epoch >= switch_epoch:
+        print(f"[Phase Switch] Epoch {epoch}: switching to light augmentations & lower LR")
+        if pbar:
+            pbar.write(f"[Phase Switch] Epoch {epoch}: switching to light augmentations & lower LR")
+
+        # --- Update augmentations ---
+        # if hasattr(train_loader.dataset, "transform"):
+        dataset = getattr(train_loader, "dataset", None)
+        if dataset is not None and hasattr(dataset, "transform"):
+            # train_loader.dataset.transform = get_late_stage_transforms()
+            dataset.transform = get_late_stage_transforms()
+            print("✓ Updated training augmentations for fine-tuning phase.")
+            if pbar:
+                pbar.write("✓ Updated training augmentations for fine-tuning phase.")
+
+        # --- Reduce LR by 2× and floor it at min_lr ---
+        for param_group in optimizer.param_groups:
+            old_lr = param_group["lr"]
+            new_lr = max(old_lr * 0.5, min_lr)
+            param_group["lr"] = new_lr
+        print(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
+        if pbar:
+            pbar.write(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
 
 
 def update_ema(model, ema_model, decay):
