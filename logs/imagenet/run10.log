@@ -1,0 +1,45 @@
+GPU: NVIDIA A10G
+Total GPU memory: 23.7 GB
+Allocated memory: 0.0 GB
+Reserved memory: 0.0 GB
+======================================================================
+🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet
+======================================================================
+
+[STEP 1/6] Checking dataset...
+
+[STEP 2/6] Loading dataset and creating data loaders...
+  - Batch size: 368, num_workers: 12
+✅ Using cache directory: /Imagenet/datasets_cache
+Sample cache file: /Imagenet/datasets_cache/ILSVRC___imagenet-1k/default/0.0.0/49e2ee26f3810fb5a7536bbf732a7b07389a47b5/imagenet-1k-train-00000-of-00267.arrow
+Mode for train transforms=finetune
+✅ Saved augmentation preview to aug_preview_finetune.png
+✓ Train loader: 1281167 images, 3482 batches
+✓ Val loader: 50000 images, 136 batches
+
+[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)
+🔍 Profiling DataLoader speed before training ...
+
+[STEP 4/6] Initializing ResNet50 model...
+  - Device: cuda
+✓ Model created: ResNet50
+  - Total parameters: 25,557,032
+  - Trainable parameters: 25,557,032
+
+[STEP 5/6] Setting up optimizer and LR scheduler...
+Optimizer=AdamW
+  - Max LR: 0.001
+  - Total steps: 21750
+✓ LR Scheduler: CosineAnnealingLR with warmup of 2 epochs
+
+[STEP 6/6] Starting training...
+======================================================================
+Starting fresh scheduler for fine-tuning True
+Loaded /Data/checkpoints/Run10-finetune-lr-aug-adamw/run5-epoch89.pth for finetuning run, without loading optimizer/scheduler/scaler states
+
+======================================================================
+📊 EPOCH 1/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 1=0.04980286753286195

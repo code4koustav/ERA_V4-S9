@@ -1,0 +1,117 @@
+GPU: NVIDIA A10G
+Total GPU memory: 23.7 GB
+Allocated memory: 0.0 GB
+Reserved memory: 0.0 GB
+======================================================================
+🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet
+======================================================================
+
+[STEP 1/6] Checking dataset...
+
+[STEP 2/6] Loading dataset and creating data loaders...
+  - Batch size: 368, num_workers: 16
+✅ Using cache directory: /Imagenet/datasets_cache
+Sample cache file: /Imagenet/datasets_cache/ILSVRC___imagenet-1k/default/0.0.0/49e2ee26f3810fb5a7536bbf732a7b07389a47b5/imagenet-1k-train-00000-of-00267.arrow
+Mode for train transforms=finetune
+✅ Saved augmentation preview to aug_preview_finetune.png
+✓ Train loader: 1281167 images, 3482 batches
+✓ Val loader: 50000 images, 136 batches
+
+[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)
+🔍 Profiling DataLoader speed before training ...
+🔍 DataLoader profiling: 200 batches
+⏱️  Average batch load time: 0.3436 sec
+⚡ Approx. samples/sec (per worker): 66.9
+✅ Avg. DataLoader batch time: 0.3436s
+
+
+[STEP 4/6] Initializing ResNet50 model...
+  - Device: cuda
+✓ Model created: ResNet50
+  - Total parameters: 25,557,032
+  - Trainable parameters: 25,557,032
+
+[STEP 5/6] Setting up optimizer and LR scheduler...
+✓ Optimizer: SGD (lr=0.03, momentum=0.9, weight_decay=0.0001), nesterov=True
+  - Max LR: 0.03
+  - Total steps: 21750
+✓ LR Scheduler: CosineAnnealingLR with warmup of 2 epochs
+
+[STEP 6/6] Starting training...
+======================================================================
+Starting fresh scheduler for fine-tuning.
+Loaded /Data/checkpoints/Run8-finetuning-highlr/run5-epoch89.pth for finetuning run, without loading optimizer/scheduler/scaler states
+
+======================================================================
+📊 EPOCH 1/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 1=0.0996057350657239
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0279, std=1.2417, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 0–997
+step 0 LR=0.003000 batch_loss=2.5779
+step 1 LR=0.003016 batch_loss=3.3465
+step 2 LR=0.003031 batch_loss=2.4248
+step 3 LR=0.003047 batch_loss=4.1783
+step 4 LR=0.003062 batch_loss=4.6119
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4661, Accuracy: 33486/50000 (66.97%)
+
+
+📈 Epoch 1 Summary:
+  - Train Loss: 3.1026
+  - Train Acc: 35.11%
+  - Val Loss: 2.4661
+  - Val Acc: 66.97%
+  - Current LR: 0.016516
+Validation loss improved to 2.4661. Saving model weights to /Data/checkpoints/Run8-finetuning-highlr/best.pth
+✅ Checkpoint saved to /Data/checkpoints/Run8-finetuning-highlr/best.pth
+Saving epoch weights: /Data/checkpoints/Run8-finetuning-highlr/epoch-1.pth
+✅ Checkpoint saved to /Data/checkpoints/Run8-finetuning-highlr/epoch-1.pth
+Time taken for epoch 1: 0:39:02.613805
+
+======================================================================
+📊 EPOCH 2/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 2=0.09842915805643156
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0031, std=0.8619, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 3–989
+step 0 LR=0.016516 batch_loss=2.5180
+step 1 LR=0.016531 batch_loss=2.3308
+step 2 LR=0.016547 batch_loss=2.4542
+step 3 LR=0.016562 batch_loss=2.3854
+step 4 LR=0.016578 batch_loss=4.3678
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5180, Accuracy: 33358/50000 (66.72%)
+
+
+📈 Epoch 2 Summary:
+  - Train Loss: 5.1457
+  - Train Acc: 31.48%
+  - Val Loss: 2.5180
+  - Val Acc: 66.72%
+  - Current LR: 0.030000
+Saving epoch weights: /Data/checkpoints/Run8-finetuning-highlr/epoch-2.pth
+✅ Checkpoint saved to /Data/checkpoints/Run8-finetuning-highlr/epoch-2.pth
+Time taken for epoch 2: 0:38:39.373825
+
+======================================================================
+📊 EPOCH 3/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 3=0.09648882429441258
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]

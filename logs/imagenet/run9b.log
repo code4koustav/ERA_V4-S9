@@ -1,0 +1,124 @@
+GPU: NVIDIA A10G
+Total GPU memory: 23.7 GB
+Allocated memory: 0.0 GB
+Reserved memory: 0.0 GB
+======================================================================
+🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet
+======================================================================
+
+[STEP 1/6] Checking dataset...
+
+[STEP 2/6] Loading dataset and creating data loaders...
+  - Batch size: 368, num_workers: 12
+✅ Using cache directory: /Imagenet/datasets_cache
+Sample cache file: /Imagenet/datasets_cache/ILSVRC___imagenet-1k/default/0.0.0/49e2ee26f3810fb5a7536bbf732a7b07389a47b5/imagenet-1k-train-00000-of-00267.arrow
+Mode for train transforms=finetune
+✅ Saved augmentation preview to aug_preview_finetune.png
+✓ Train loader: 1281167 images, 3482 batches
+✓ Val loader: 50000 images, 136 batches
+
+[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)
+🔍 Profiling DataLoader speed before training ...
+🔍 DataLoader profiling: 200 batches
+⏱️  Average batch load time: 0.3495 sec
+⚡ Approx. samples/sec (per worker): 87.7
+✅ Avg. DataLoader batch time: 0.3495s
+
+
+[STEP 4/6] Initializing ResNet50 model...
+  - Device: cuda
+✓ Model created: ResNet50
+  - Total parameters: 25,557,032
+  - Trainable parameters: 25,557,032
+
+[STEP 5/6] Setting up optimizer and LR scheduler...
+✓ Optimizer: SGD (lr=0.03, momentum=0.9, weight_decay=0.0001), nesterov=True
+  - Max LR: 0.03
+  - Total steps: 21750
+✓ LR Scheduler: CosineAnnealingLR with warmup of 2 epochs
+
+[STEP 6/6] Starting training...
+======================================================================
+Starting fresh scheduler for fine-tuning.
+Loaded /Data/checkpoints/Run9-finetune-lr-aug/run5-epoch89.pth for finetuning run, without loading optimizer/scheduler/scaler states
+
+======================================================================
+📊 EPOCH 1/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 1=0.0996057350657239
+[Debug] Input mean=-0.0249, std=1.1882, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 0–997
+[EMA Debug] Param diff after first step: 0.0000
+Epoch:1 Batch:0 | Loss:2.8112 Acc:64.9457 LR:3.00e-03 GradNorm:0 GPU:17 CPU:29.7 RAM:39.4
+step 0 LR=0.003000 batch_loss=2.5505
+[Step 3] EMA mean parameter diff: 0.000006
+step 1 LR=0.003016 batch_loss=3.7251
+[Step 7] EMA mean parameter diff: 0.000011
+step 2 LR=0.003031 batch_loss=4.3649
+[Step 11] EMA mean parameter diff: 0.000017
+step 3 LR=0.003047 batch_loss=2.5348
+[Step 15] EMA mean parameter diff: 0.000023
+step 4 LR=0.003062 batch_loss=2.4085
+[Step 19] EMA mean parameter diff: 0.000030
+Epoch:1 Batch:100 | Loss:2.8682 Acc:32.3773 LR:3.39e-03 GradNorm:0.9999998913559331 GPU:100 CPU:44.6 RAM:42.2
+Epoch:1 Batch:200 | Loss:4.9977 Acc:30.6497 LR:3.78e-03 GradNorm:0.9999999534594696 GPU:100 CPU:43.5 RAM:43.4
+Epoch:1 Batch:300 | Loss:2.3567 Acc:30.8338 LR:4.16e-03 GradNorm:0.9999999567656037 GPU:100 CPU:54.5 RAM:44.2
+Epoch:1 Batch:400 | Loss:2.3389 Acc:30.3785 LR:4.55e-03 GradNorm:0.999999860437235 GPU:100 CPU:45.2 RAM:45.2
+Epoch:1 Batch:500 | Loss:2.3682 Acc:31.8114 LR:4.94e-03 GradNorm:0.9999998339162127 GPU:100 CPU:42.1 RAM:45.1
+Epoch:1 Batch:600 | Loss:2.6223 Acc:32.9935 LR:5.33e-03 GradNorm:0.9999998617491443 GPU:100 CPU:45.8 RAM:46.5
+Epoch:1 Batch:700 | Loss:4.4647 Acc:33.3472 LR:5.72e-03 GradNorm:0.9999999078216485 GPU:100 CPU:46.4 RAM:47.0
+Epoch:1 Batch:800 | Loss:2.3641 Acc:33.0789 LR:6.10e-03 GradNorm:0.9999998795616569 GPU:100 CPU:45.1 RAM:47.3
+Epoch:1 Batch:900 | Loss:4.6696 Acc:33.5147 LR:6.49e-03 GradNorm:0.9999999196431181 GPU:100 CPU:45.5 RAM:47.0
+Epoch:1 Batch:1000 | Loss:2.3652 Acc:33.6780 LR:6.88e-03 GradNorm:0.9999998907161145 GPU:100 CPU:44.9 RAM:47.6
+Epoch:1 Batch:1100 | Loss:2.6656 Acc:33.9173 LR:7.27e-03 GradNorm:0.999999886671412 GPU:100 CPU:50.7 RAM:51.5
+Epoch:1 Batch:1200 | Loss:4.0463 Acc:34.0642 LR:7.66e-03 GradNorm:0.9999999313792396 GPU:100 CPU:51.4 RAM:52.6
+Epoch:1 Batch:1300 | Loss:2.4338 Acc:33.9158 LR:8.04e-03 GradNorm:0.999999962770831 GPU:100 CPU:56.9 RAM:52.0
+Epoch:1 Batch:1400 | Loss:3.1900 Acc:34.1030 LR:8.43e-03 GradNorm:0.9999999081013986 GPU:100 CPU:43.3 RAM:51.7
+Epoch:1 Batch:1500 | Loss:2.3237 Acc:34.2500 LR:8.82e-03 GradNorm:0.9999999342925502 GPU:100 CPU:44.7 RAM:53.6
+Epoch:1 Batch:1600 | Loss:2.5340 Acc:34.1415 LR:9.21e-03 GradNorm:0.9999999462761723 GPU:100 CPU:46.6 RAM:52.4
+Epoch:1 Batch:1700 | Loss:2.5192 Acc:34.5658 LR:9.59e-03 GradNorm:0.9999999224430013 GPU:100 CPU:58.5 RAM:52.6
+Epoch:1 Batch:1800 | Loss:3.3909 Acc:34.4757 LR:9.98e-03 GradNorm:0.9999999138999639 GPU:100 CPU:44.6 RAM:53.2
+Epoch:1 Batch:1900 | Loss:2.3074 Acc:34.3738 LR:1.04e-02 GradNorm:0.9999998855151738 GPU:100 CPU:44.9 RAM:53.0
+Epoch:1 Batch:2000 | Loss:4.0971 Acc:34.2811 LR:1.08e-02 GradNorm:0.999999882958965 GPU:100 CPU:57.0 RAM:53.5
+Epoch:1 Batch:2100 | Loss:2.6028 Acc:34.5221 LR:1.11e-02 GradNorm:0.9999998844750524 GPU:100 CPU:45.0 RAM:53.9
+Epoch:1 Batch:2200 | Loss:2.4465 Acc:34.4288 LR:1.15e-02 GradNorm:0.99999990983813 GPU:100 CPU:47.4 RAM:53.8
+Epoch:1 Batch:2300 | Loss:3.0702 Acc:34.3725 LR:1.19e-02 GradNorm:0.9999999660218768 GPU:100 CPU:54.7 RAM:53.6
+Epoch:1 Batch:2400 | Loss:2.3262 Acc:34.2228 LR:1.23e-02 GradNorm:0.9999999424185433 GPU:100 CPU:44.6 RAM:53.9
+Epoch:1 Batch:2500 | Loss:2.3936 Acc:34.3188 LR:1.27e-02 GradNorm:0.9999999920082238 GPU:100 CPU:46.8 RAM:54.0
+Epoch:1 Batch:2600 | Loss:3.7399 Acc:34.2318 LR:1.31e-02 GradNorm:0.9999999024586366 GPU:100 CPU:44.7 RAM:54.5
+Epoch:1 Batch:2700 | Loss:2.4396 Acc:34.0857 LR:1.35e-02 GradNorm:0.99999991850293 GPU:100 CPU:46.7 RAM:54.5
+Epoch:1 Batch:2800 | Loss:4.6616 Acc:34.0551 LR:1.39e-02 GradNorm:0.9999999682604934 GPU:100 CPU:47.6 RAM:54.8
+Epoch:1 Batch:2900 | Loss:4.2987 Acc:34.3310 LR:1.43e-02 GradNorm:0.9999998668679165 GPU:100 CPU:47.7 RAM:55.3
+Epoch:1 Batch:3000 | Loss:4.0072 Acc:34.2191 LR:1.46e-02 GradNorm:0.9999999328236892 GPU:100 CPU:46.1 RAM:54.9
+Epoch:1 Batch:3100 | Loss:4.7165 Acc:34.2298 LR:1.50e-02 GradNorm:0.9999999306569405 GPU:100 CPU:49.0 RAM:55.3
+Epoch:1 Batch:3200 | Loss:2.5242 Acc:34.2174 LR:1.54e-02 GradNorm:0.9999999542430953 GPU:100 CPU:45.6 RAM:55.0
+Epoch:1 Batch:3300 | Loss:2.4750 Acc:34.2067 LR:1.58e-02 GradNorm:0.9999999221170264 GPU:100 CPU:45.0 RAM:55.1
+Epoch:1 Batch:3400 | Loss:3.8436 Acc:34.1262 LR:1.62e-02 GradNorm:0.9999999677784382 GPU:100 CPU:45.0 RAM:55.1
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4652, Accuracy: 33521/50000 (67.04%)
+
+
+📈 Epoch 1 Summary:
+  - Train Loss: 2.4290
+  - Train Acc: 34.12%
+  - Val Loss: 2.4652
+  - Val Acc: 67.04%
+  - Current LR: 0.016516
+Validation loss improved to 2.4652. Saving model weights to /Data/checkpoints/Run9-finetune-lr-aug/best.pth
+✅ Checkpoint saved to /Data/checkpoints/Run9-finetune-lr-aug/best.pth
+Saving epoch weights: /Data/checkpoints/Run9-finetune-lr-aug/epoch-1.pth
+✅ Checkpoint saved to /Data/checkpoints/Run9-finetune-lr-aug/epoch-1.pth
+Time taken for epoch 1: 0:38:12.317514
+
+======================================================================
+📊 EPOCH 2/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 2=0.09842915805643156

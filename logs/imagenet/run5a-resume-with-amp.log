@@ -1,0 +1,737 @@
+GPU: NVIDIA A10G
+Total GPU memory: 23.7 GB
+Allocated memory: 0.0 GB
+Reserved memory: 0.0 GB
+======================================================================
+🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet
+======================================================================
+
+[STEP 1/6] Checking dataset...
+
+[STEP 2/6] Loading dataset and creating data loaders...
+  - Batch size: 352, num_workers: 16
+✓ Train loader: 1281167 images, 3640 batches
+✓ Val loader: 50000 images, 143 batches
+
+[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)
+
+[STEP 4/6] Initializing ResNet50 model...
+  - Device: cuda
+✓ Model created: ResNet50
+  - Total parameters: 25,557,032
+  - Trainable parameters: 25,557,032
+
+[STEP 5/6] Setting up optimizer and LR scheduler...
+Initial LR: 0.0020000000000000018
+✓ Optimizer: SGD (lr=0.05, momentum=0.9, weight_decay=5e-4)
+✓ LR Scheduler: OneCycleLR
+  - Max LR: 0.05
+  - Total steps: 81900
+Total steps: 81,900, Warmup steps: 6,552 (8.0% of training)
+
+[STEP 6/6] Starting training...
+======================================================================
+✅ Checkpoint loaded. Resuming from epoch 67
+[Resume] Scheduler fast-forwarded to epoch 67, step 60970.
+[Resume] Current LR = 0.013006
+
+======================================================================
+📊 EPOCH 67/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1227, std=1.2804, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 2–991
+step 0 LR=0.013006 batch_loss=3.3693
+step 1 LR=0.013005 batch_loss=3.3128
+step 2 LR=0.013004 batch_loss=4.5526
+step 3 LR=0.013003 batch_loss=3.9388
+step 4 LR=0.013002 batch_loss=3.3833
+
+🔍 Validating...
+
+Val set: Avg loss: 2.7537, Accuracy: 29069/50000 (58.14%)
+
+
+📈 Epoch 67 Summary:
+  - Train Loss: 3.3065
+  - Train Acc: 26.96%
+  - Val Loss: 2.7537
+  - Val Acc: 58.14%
+  - Current LR: 0.011999
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-67.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-67.pth
+Time taken for epoch 67: 0:44:21.885759
+
+======================================================================
+📊 EPOCH 68/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.2035, std=1.2715, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–992
+step 0 LR=0.011999 batch_loss=3.4069
+step 1 LR=0.011998 batch_loss=3.0813
+step 2 LR=0.011996 batch_loss=3.8580
+step 3 LR=0.011995 batch_loss=4.2064
+step 4 LR=0.011994 batch_loss=4.9889
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6700, Accuracy: 29611/50000 (59.22%)
+
+
+📈 Epoch 68 Summary:
+  - Train Loss: 3.2053
+  - Train Acc: 28.66%
+  - Val Loss: 2.6700
+  - Val Acc: 59.22%
+  - Current LR: 0.011019
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-68.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-68.pth
+Time taken for epoch 68: 0:47:02.359453
+
+======================================================================
+📊 EPOCH 69/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1678, std=1.2551, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 4–995
+step 0 LR=0.011019 batch_loss=3.1764
+step 1 LR=0.011018 batch_loss=4.7502
+step 2 LR=0.011017 batch_loss=4.8788
+step 3 LR=0.011016 batch_loss=4.9397
+step 4 LR=0.011015 batch_loss=3.3283
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6544, Accuracy: 29574/50000 (59.15%)
+
+
+📈 Epoch 69 Summary:
+  - Train Loss: 3.1574
+  - Train Acc: 29.41%
+  - Val Loss: 2.6544
+  - Val Acc: 59.15%
+  - Current LR: 0.010070
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-69.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-69.pth
+Time taken for epoch 69: 0:56:46.078455
+
+======================================================================
+📊 EPOCH 70/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1278, std=1.2674, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.010070 batch_loss=3.8674
+step 1 LR=0.010069 batch_loss=3.1468
+step 2 LR=0.010068 batch_loss=3.6478
+step 3 LR=0.010067 batch_loss=3.1626
+step 4 LR=0.010066 batch_loss=3.4739
+
+🔍 Validating...
+
+Val set: Avg loss: 2.7004, Accuracy: 29638/50000 (59.28%)
+
+
+📈 Epoch 70 Summary:
+  - Train Loss: 5.4517
+  - Train Acc: 28.39%
+  - Val Loss: 2.7004
+  - Val Acc: 59.28%
+  - Current LR: 0.009153
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-70.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-70.pth
+Time taken for epoch 70: 1:04:54.557201
+
+======================================================================
+📊 EPOCH 71/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1665, std=0.9499, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.009153 batch_loss=4.8275
+step 1 LR=0.009152 batch_loss=3.1189
+step 2 LR=0.009151 batch_loss=4.7047
+step 3 LR=0.009150 batch_loss=3.1456
+step 4 LR=0.009149 batch_loss=4.7782
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6415, Accuracy: 30049/50000 (60.10%)
+
+
+📈 Epoch 71 Summary:
+  - Train Loss: 3.0848
+  - Train Acc: 28.92%
+  - Val Loss: 2.6415
+  - Val Acc: 60.10%
+  - Current LR: 0.008271
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-71.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-71.pth
+Time taken for epoch 71: 1:05:02.164787
+
+======================================================================
+📊 EPOCH 72/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1835, std=1.2748, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 3–990
+step 0 LR=0.008271 batch_loss=3.0220
+step 1 LR=0.008270 batch_loss=3.1657
+step 2 LR=0.008269 batch_loss=3.1542
+step 3 LR=0.008268 batch_loss=5.1762
+step 4 LR=0.008267 batch_loss=3.4535
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6353, Accuracy: 30475/50000 (60.95%)
+
+
+📈 Epoch 72 Summary:
+  - Train Loss: 4.4687
+  - Train Acc: 30.13%
+  - Val Loss: 2.6353
+  - Val Acc: 60.95%
+  - Current LR: 0.007425
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-72.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-72.pth
+Time taken for epoch 72: 1:04:50.101390
+
+======================================================================
+📊 EPOCH 73/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1874, std=1.2416, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 5–995
+step 0 LR=0.007425 batch_loss=4.3581
+step 1 LR=0.007424 batch_loss=4.2556
+step 2 LR=0.007423 batch_loss=4.9870
+step 3 LR=0.007422 batch_loss=3.8675
+step 4 LR=0.007421 batch_loss=3.0141
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6036, Accuracy: 30785/50000 (61.57%)
+
+
+📈 Epoch 73 Summary:
+  - Train Loss: 3.7305
+  - Train Acc: 29.43%
+  - Val Loss: 2.6036
+  - Val Acc: 61.57%
+  - Current LR: 0.006617
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-73.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-73.pth
+Time taken for epoch 73: 1:05:12.552641
+
+======================================================================
+📊 EPOCH 74/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1406, std=1.3035, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 1–999
+step 0 LR=0.006617 batch_loss=3.0434
+step 1 LR=0.006616 batch_loss=4.5758
+step 2 LR=0.006615 batch_loss=3.0136
+step 3 LR=0.006614 batch_loss=3.0848
+step 4 LR=0.006613 batch_loss=3.9287
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6365, Accuracy: 30761/50000 (61.52%)
+
+
+📈 Epoch 74 Summary:
+  - Train Loss: 4.8834
+  - Train Acc: 30.86%
+  - Val Loss: 2.6365
+  - Val Acc: 61.52%
+  - Current LR: 0.005848
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-74.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-74.pth
+Time taken for epoch 74: 1:04:44.713464
+
+======================================================================
+📊 EPOCH 75/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1568, std=1.2963, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 9–996
+step 0 LR=0.005848 batch_loss=4.7963
+step 1 LR=0.005847 batch_loss=3.1708
+step 2 LR=0.005847 batch_loss=2.9941
+step 3 LR=0.005846 batch_loss=3.2761
+step 4 LR=0.005845 batch_loss=5.3251
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5563, Accuracy: 31326/50000 (62.65%)
+
+
+📈 Epoch 75 Summary:
+  - Train Loss: 3.7982
+  - Train Acc: 30.49%
+  - Val Loss: 2.5563
+  - Val Acc: 62.65%
+  - Current LR: 0.005121
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-75.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-75.pth
+Time taken for epoch 75: 1:05:18.027133
+
+======================================================================
+📊 EPOCH 76/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1876, std=1.2351, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 1–993
+step 0 LR=0.005121 batch_loss=3.4518
+step 1 LR=0.005121 batch_loss=3.9260
+step 2 LR=0.005120 batch_loss=4.5628
+step 3 LR=0.005119 batch_loss=5.1378
+step 4 LR=0.005118 batch_loss=2.9896
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5934, Accuracy: 31387/50000 (62.77%)
+
+
+📈 Epoch 76 Summary:
+  - Train Loss: 4.5448
+  - Train Acc: 31.41%
+  - Val Loss: 2.5934
+  - Val Acc: 62.77%
+  - Current LR: 0.004438
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-76.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-76.pth
+Time taken for epoch 76: 1:05:02.978965
+
+======================================================================
+📊 EPOCH 77/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1916, std=1.2773, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 2–999
+step 0 LR=0.004438 batch_loss=4.4900
+step 1 LR=0.004437 batch_loss=4.4378
+step 2 LR=0.004436 batch_loss=4.7682
+step 3 LR=0.004435 batch_loss=3.3117
+step 4 LR=0.004435 batch_loss=3.1215
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5403, Accuracy: 31695/50000 (63.39%)
+
+
+📈 Epoch 77 Summary:
+  - Train Loss: 3.3261
+  - Train Acc: 31.59%
+  - Val Loss: 2.5403
+  - Val Acc: 63.39%
+  - Current LR: 0.003798
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-77.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-77.pth
+Time taken for epoch 77: 1:05:25.665474
+
+======================================================================
+📊 EPOCH 78/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1591, std=1.0362, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 1–996
+step 0 LR=0.003798 batch_loss=4.7069
+step 1 LR=0.003798 batch_loss=3.4905
+step 2 LR=0.003797 batch_loss=4.4608
+step 3 LR=0.003796 batch_loss=2.9658
+step 4 LR=0.003796 batch_loss=4.0349
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5098, Accuracy: 31966/50000 (63.93%)
+
+
+📈 Epoch 78 Summary:
+  - Train Loss: 3.2075
+  - Train Acc: 31.54%
+  - Val Loss: 2.5098
+  - Val Acc: 63.93%
+  - Current LR: 0.003205
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-78.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-78.pth
+Time taken for epoch 78: 1:05:13.501962
+
+======================================================================
+📊 EPOCH 79/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1805, std=1.2521, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 2–997
+step 0 LR=0.003205 batch_loss=4.1365
+step 1 LR=0.003204 batch_loss=3.0930
+step 2 LR=0.003204 batch_loss=4.5551
+step 3 LR=0.003203 batch_loss=2.9696
+step 4 LR=0.003202 batch_loss=2.9540
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4900, Accuracy: 32212/50000 (64.42%)
+
+
+📈 Epoch 79 Summary:
+  - Train Loss: 2.9098
+  - Train Acc: 32.65%
+  - Val Loss: 2.4900
+  - Val Acc: 64.42%
+  - Current LR: 0.002659
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-79.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-79.pth
+Time taken for epoch 79: 1:05:06.566328
+
+======================================================================
+📊 EPOCH 80/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1626, std=1.0142, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 9–996
+step 0 LR=0.002659 batch_loss=4.9377
+step 1 LR=0.002658 batch_loss=4.4259
+step 2 LR=0.002658 batch_loss=3.4437
+step 3 LR=0.002657 batch_loss=4.6001
+step 4 LR=0.002657 batch_loss=3.6445
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4993, Accuracy: 32432/50000 (64.86%)
+
+
+📈 Epoch 80 Summary:
+  - Train Loss: 2.8642
+  - Train Acc: 32.38%
+  - Val Loss: 2.4993
+  - Val Acc: 64.86%
+  - Current LR: 0.002161
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-80.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-80.pth
+Time taken for epoch 80: 1:05:22.727169
+
+======================================================================
+📊 EPOCH 81/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1252, std=1.1851, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 1–995
+step 0 LR=0.002161 batch_loss=2.8183
+step 1 LR=0.002161 batch_loss=3.3996
+step 2 LR=0.002160 batch_loss=4.6319
+step 3 LR=0.002159 batch_loss=5.1193
+step 4 LR=0.002159 batch_loss=4.2817
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4505, Accuracy: 32687/50000 (65.37%)
+
+
+📈 Epoch 81 Summary:
+  - Train Loss: 2.8630
+  - Train Acc: 33.32%
+  - Val Loss: 2.4505
+  - Val Acc: 65.37%
+  - Current LR: 0.001713
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-81.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-81.pth
+Time taken for epoch 81: 1:05:02.681529
+
+======================================================================
+📊 EPOCH 82/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1450, std=1.0191, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.001713 batch_loss=2.8423
+step 1 LR=0.001712 batch_loss=2.7974
+step 2 LR=0.001712 batch_loss=4.2719
+step 3 LR=0.001711 batch_loss=3.0111
+step 4 LR=0.001711 batch_loss=4.7962
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4925, Accuracy: 32827/50000 (65.65%)
+
+
+📈 Epoch 82 Summary:
+  - Train Loss: 4.6692
+  - Train Acc: 33.29%
+  - Val Loss: 2.4925
+  - Val Acc: 65.65%
+  - Current LR: 0.001315
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-82.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-82.pth
+Time taken for epoch 82: 1:05:00.291313
+
+======================================================================
+📊 EPOCH 83/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1588, std=1.2623, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.001315 batch_loss=4.7159
+step 1 LR=0.001314 batch_loss=4.4430
+step 2 LR=0.001314 batch_loss=2.8296
+step 3 LR=0.001314 batch_loss=4.7055
+step 4 LR=0.001313 batch_loss=3.2616
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4712, Accuracy: 33007/50000 (66.01%)
+
+
+📈 Epoch 83 Summary:
+  - Train Loss: 4.0178
+  - Train Acc: 33.84%
+  - Val Loss: 2.4712
+  - Val Acc: 66.01%
+  - Current LR: 0.000968
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-83.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-83.pth
+Time taken for epoch 83: 1:05:03.865635
+
+======================================================================
+📊 EPOCH 84/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1810, std=1.2450, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 3–998
+step 0 LR=0.000968 batch_loss=2.8653
+step 1 LR=0.000968 batch_loss=3.4155
+step 2 LR=0.000968 batch_loss=3.4039
+step 3 LR=0.000967 batch_loss=2.7891
+step 4 LR=0.000967 batch_loss=2.9073
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4763, Accuracy: 33150/50000 (66.30%)
+
+
+📈 Epoch 84 Summary:
+  - Train Loss: 4.5978
+  - Train Acc: 33.71%
+  - Val Loss: 2.4763
+  - Val Acc: 66.30%
+  - Current LR: 0.000674
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-84.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-84.pth
+Time taken for epoch 84: 1:05:36.796209
+
+======================================================================
+📊 EPOCH 85/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.2090, std=1.2697, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 5–992
+step 0 LR=0.000674 batch_loss=4.5573
+step 1 LR=0.000673 batch_loss=3.0719
+step 2 LR=0.000673 batch_loss=2.8145
+step 3 LR=0.000673 batch_loss=2.9852
+step 4 LR=0.000673 batch_loss=2.7595
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4480, Accuracy: 33215/50000 (66.43%)
+
+
+📈 Epoch 85 Summary:
+  - Train Loss: 5.2901
+  - Train Acc: 33.18%
+  - Val Loss: 2.4480
+  - Val Acc: 66.43%
+  - Current LR: 0.000432
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-85.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-85.pth
+Time taken for epoch 85: 1:05:25.539845
+
+======================================================================
+📊 EPOCH 86/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1452, std=0.9338, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.000432 batch_loss=3.3319
+step 1 LR=0.000432 batch_loss=4.5563
+step 2 LR=0.000431 batch_loss=4.1031
+step 3 LR=0.000431 batch_loss=4.4172
+step 4 LR=0.000431 batch_loss=2.8589
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4085, Accuracy: 33373/50000 (66.75%)
+
+
+📈 Epoch 86 Summary:
+  - Train Loss: 2.9527
+  - Train Acc: 33.95%
+  - Val Loss: 2.4085
+  - Val Acc: 66.75%
+  - Current LR: 0.000243
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-86.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-86.pth
+Time taken for epoch 86: 1:05:27.459540
+
+======================================================================
+📊 EPOCH 87/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1796, std=1.2609, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–995
+step 0 LR=0.000243 batch_loss=4.5236
+step 1 LR=0.000243 batch_loss=4.1894
+step 2 LR=0.000243 batch_loss=3.1066
+step 3 LR=0.000243 batch_loss=3.0291
+step 4 LR=0.000243 batch_loss=2.7757
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4487, Accuracy: 33432/50000 (66.86%)
+
+
+📈 Epoch 87 Summary:
+  - Train Loss: 2.7825
+  - Train Acc: 34.62%
+  - Val Loss: 2.4487
+  - Val Acc: 66.86%
+  - Current LR: 0.000108
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-87.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-87.pth
+Time taken for epoch 87: 1:05:12.905147
+
+======================================================================
+📊 EPOCH 88/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1254, std=0.9709, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 8–998
+step 0 LR=0.000108 batch_loss=3.3378
+step 1 LR=0.000108 batch_loss=4.4193
+step 2 LR=0.000108 batch_loss=4.1379
+step 3 LR=0.000108 batch_loss=4.4850
+step 4 LR=0.000108 batch_loss=4.9381
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4018, Accuracy: 33420/50000 (66.84%)
+
+
+📈 Epoch 88 Summary:
+  - Train Loss: 2.9729
+  - Train Acc: 34.07%
+  - Val Loss: 2.4018
+  - Val Acc: 66.84%
+  - Current LR: 0.000027
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-88.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-88.pth
+Time taken for epoch 88: 1:05:34.233313
+
+======================================================================
+📊 EPOCH 89/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1433, std=0.9137, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.000027 batch_loss=2.7667
+step 1 LR=0.000027 batch_loss=2.7211
+step 2 LR=0.000027 batch_loss=4.1100
+step 3 LR=0.000027 batch_loss=3.1748
+step 4 LR=0.000027 batch_loss=4.0850
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4501, Accuracy: 33416/50000 (66.83%)
+
+
+📈 Epoch 89 Summary:
+  - Train Loss: 5.4104
+  - Train Acc: 35.01%
+  - Val Loss: 2.4501
+  - Val Acc: 66.83%
+  - Current LR: 0.000000
+Saving epoch weights: /Data/checkpoints/Run5-amp-epoch67/epoch-89.pth
+✅ Checkpoint saved to /Data/checkpoints/Run5-amp-epoch67/epoch-89.pth
+Time taken for epoch 89: 1:01:05.469209
+
+======================================================================
+📊 EPOCH 90/90
+======================================================================
+
+🔄 Training...
+[Debug] Input mean=-0.1764, std=1.2588, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (352, 3, 224, 224)
+[Debug] Label range: 5–999
+step 0 LR=0.000000 batch_loss=4.6288

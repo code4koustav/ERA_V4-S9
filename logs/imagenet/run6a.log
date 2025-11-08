@@ -1,0 +1,277 @@
+GPU: NVIDIA A10G
+Total GPU memory: 23.7 GB
+Allocated memory: 0.0 GB
+Reserved memory: 0.0 GB
+======================================================================
+🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet
+======================================================================
+
+[STEP 1/6] Checking dataset...
+
+[STEP 2/6] Loading dataset and creating data loaders...
+  - Batch size: 368, num_workers: 8
+✅ Using cache directory: /Imagenet/datasets_cache
+Sample cache file: /Imagenet/datasets_cache/ILSVRC___imagenet-1k/default/0.0.0/49e2ee26f3810fb5a7536bbf732a7b07389a47b5/imagenet-1k-train-00000-of-00267.arrow
+Mode for train transforms=finetune
+✅ Saved augmentation preview to aug_preview_finetune.png
+✓ Train loader: 1281167 images, 3482 batches
+✓ Val loader: 50000 images, 136 batches
+
+[STEP 3/6] Skipping dataset inspection (set inspect_data=True to enable)
+🔍 Profiling DataLoader speed before training ...
+🔍 DataLoader profiling: 200 batches
+⏱️  Average batch load time: 0.3122 sec
+⚡ Approx. samples/sec (per worker): 147.3
+✅ Avg. DataLoader batch time: 0.3122s
+
+
+[STEP 4/6] Initializing ResNet50 model...
+  - Device: cuda
+✓ Model created: ResNet50
+  - Total parameters: 25,557,032
+  - Trainable parameters: 25,557,032
+
+[STEP 5/6] Setting up optimizer and LR scheduler...
+✓ Optimizer: SGD (lr=0.01, momentum=0.9, weight_decay=0.0001), nesterov=True
+  - Max LR: 0.01
+  - Total steps: 21750
+✓ LR Scheduler: CosineAnnealingLR with warmup of 2 epochs
+
+[STEP 6/6] Starting training...
+======================================================================
+Starting fresh scheduler for fine-tuning.
+Loaded /Data/checkpoints/Run6-finetuning/run5-epoch89.pth for finetuning run, without loading optimizer/scheduler/scaler states
+
+======================================================================
+📊 EPOCH 1/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 1=0.24901433766430975
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0304, std=1.2447, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 0–997
+step 0 LR=0.001000 batch_loss=4.4409
+step 1 LR=0.001005 batch_loss=4.2991
+step 2 LR=0.001010 batch_loss=3.3538
+step 3 LR=0.001016 batch_loss=2.5645
+step 4 LR=0.001021 batch_loss=2.4962
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4626, Accuracy: 33486/50000 (66.97%)
+
+
+📈 Epoch 1 Summary:
+  - Train Loss: 2.8886
+  - Train Acc: 37.67%
+  - Val Loss: 2.4626
+  - Val Acc: 66.97%
+  - Current LR: 0.005505
+Validation loss improved to 2.4626. Saving model weights to /Data/checkpoints/Run6-finetuning/best.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/best.pth
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-1.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-1.pth
+Time taken for epoch 1: 0:37:55.947182
+
+======================================================================
+📊 EPOCH 2/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 2=0.24607289514107888
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0068, std=0.8622, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 3–989
+step 0 LR=0.005505 batch_loss=4.1832
+step 1 LR=0.005510 batch_loss=2.8339
+step 2 LR=0.005516 batch_loss=2.3192
+step 3 LR=0.005521 batch_loss=2.2352
+step 4 LR=0.005526 batch_loss=2.3063
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4760, Accuracy: 33529/50000 (67.06%)
+
+
+📈 Epoch 2 Summary:
+  - Train Loss: 4.2373
+  - Train Acc: 36.18%
+  - Val Loss: 2.4760
+  - Val Acc: 67.06%
+  - Current LR: 0.010000
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-2.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-2.pth
+Time taken for epoch 2: 0:37:18.860759
+
+======================================================================
+📊 EPOCH 3/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 3=0.24122206073603142
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0477, std=1.0308, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 2–991
+step 0 LR=0.010000 batch_loss=4.8007
+step 1 LR=0.010000 batch_loss=4.0066
+step 2 LR=0.010000 batch_loss=2.4570
+step 3 LR=0.010000 batch_loss=2.9732
+step 4 LR=0.010000 batch_loss=2.5845
+
+🔍 Validating...
+
+Val set: Avg loss: 2.4986, Accuracy: 33542/50000 (67.08%)
+
+
+📈 Epoch 3 Summary:
+  - Train Loss: 4.0700
+  - Train Acc: 35.35%
+  - Val Loss: 2.4986
+  - Val Acc: 67.08%
+  - Current LR: 0.009953
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-3.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-3.pth
+Time taken for epoch 3: 0:37:19.504970
+
+======================================================================
+📊 EPOCH 4/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 4=0.23453833500548293
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0351, std=1.2264, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 0–997
+step 0 LR=0.009953 batch_loss=4.0570
+step 1 LR=0.009953 batch_loss=4.2562
+step 2 LR=0.009953 batch_loss=4.9955
+step 3 LR=0.009953 batch_loss=4.1330
+step 4 LR=0.009953 batch_loss=2.2244
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5353, Accuracy: 33401/50000 (66.80%)
+
+
+📈 Epoch 4 Summary:
+  - Train Loss: 2.2907
+  - Train Acc: 36.18%
+  - Val Loss: 2.5353
+  - Val Acc: 66.80%
+  - Current LR: 0.009814
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-4.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-4.pth
+Time taken for epoch 4: 0:37:18.114198
+
+======================================================================
+📊 EPOCH 5/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 5=0.22612712429686843
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0294, std=1.0865, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 1–998
+step 0 LR=0.009814 batch_loss=2.4383
+step 1 LR=0.009814 batch_loss=2.5317
+step 2 LR=0.009813 batch_loss=2.3186
+step 3 LR=0.009813 batch_loss=2.2099
+step 4 LR=0.009813 batch_loss=4.0536
+
+🔍 Validating...
+
+Val set: Avg loss: 2.5975, Accuracy: 33077/50000 (66.15%)
+
+
+📈 Epoch 5 Summary:
+  - Train Loss: 4.9303
+  - Train Acc: 37.19%
+  - Val Loss: 2.5975
+  - Val Acc: 66.15%
+  - Current LR: 0.009585
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-5.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-5.pth
+Time taken for epoch 5: 0:37:20.089804
+
+======================================================================
+📊 EPOCH 6/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 6=0.21612107842767644
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=0.0181, std=1.2433, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 0–999
+step 0 LR=0.009585 batch_loss=2.2457
+step 1 LR=0.009584 batch_loss=2.1429
+step 2 LR=0.009584 batch_loss=2.1469
+step 3 LR=0.009584 batch_loss=2.2742
+step 4 LR=0.009583 batch_loss=3.5938
+
+🔍 Validating...
+
+Val set: Avg loss: 2.6847, Accuracy: 32575/50000 (65.15%)
+
+
+📈 Epoch 6 Summary:
+  - Train Loss: 2.0430
+  - Train Acc: 37.35%
+  - Val Loss: 2.6847
+  - Val Acc: 65.15%
+  - Current LR: 0.009270
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-6.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-6.pth
+Time taken for epoch 6: 0:37:18.539554
+
+======================================================================
+📊 EPOCH 7/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 7=0.20467799871858622
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
+[Debug] Input mean=-0.0831, std=1.2124, min=-2.1179, max=2.6400
+[Debug] Device check: model=cuda:0, data=cuda:0
+[Debug] Batch shape: (368, 3, 224, 224)
+[Debug] Label range: 0–996
+step 0 LR=0.009270 batch_loss=2.1842
+step 1 LR=0.009269 batch_loss=2.0877
+step 2 LR=0.009269 batch_loss=2.1305
+step 3 LR=0.009268 batch_loss=2.7395
+step 4 LR=0.009268 batch_loss=2.0836
+
+🔍 Validating...
+
+Val set: Avg loss: 2.8004, Accuracy: 31804/50000 (63.61%)
+
+
+📈 Epoch 7 Summary:
+  - Train Loss: 2.1531
+  - Train Acc: 38.10%
+  - Val Loss: 2.8004
+  - Val Acc: 63.61%
+  - Current LR: 0.008875
+Saving epoch weights: /Data/checkpoints/Run6-finetuning/epoch-7.pth
+✅ Checkpoint saved to /Data/checkpoints/Run6-finetuning/epoch-7.pth
+Time taken for epoch 7: 0:37:20.645415
+
+======================================================================
+📊 EPOCH 8/25
+======================================================================
+
+🔄 Training...
+Cutmix probability for epoch 8=0.19197834937237457
+[Debug setup] Diagnostics will run at batches: [0, 348, 696, 1044, 1392, 1741, 2089, 2437, 2785, 3133]
