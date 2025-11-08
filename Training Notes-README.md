@@ -191,10 +191,12 @@ These runs were to try and reduce per-epoch runtime from 1 hour to ~35-40 mins. 
 - Used **lighter augmentations** with lower probabilities; Mixup/Cutmix reduced to 0 near end.
 - Added more diagnostics for CPU/GPU utilization. 
 - Attempted **EMA** for validation loss tracking — implementation incorrect, caused issues.
-- Val Acc: **73.31%** after 17 epochs
+- Val Acc: **74.75%** 
 
 **Logs:**
-[Training Logs](logs/imagenet/run10b.log)
+[Training Logs1](logs/imagenet/run10b.log)   
+[Training Logs2](logs/imagenet/run10c.log)   
+[Training Logs Final](logs/imagenet/run10d.log)    
 
 **Tensorboard Train/Val Accuracy Graphs**  
 
@@ -206,18 +208,22 @@ These runs were to try and reduce per-epoch runtime from 1 hour to ~35-40 mins. 
 
 ## 📊 Summary Table
 
-| Run Name | Instance | Batch Size | LR | Epochs (ran) | Mixed Precision | Final Val Acc       | Notes |
-|-----------|-----------|-------------|----|----------------|------------------|---------------------|--------|
-| Dry Run | g4dn.xlarge | 210 | — | 2 | ❌ | —                   | Pipeline check only |
-| Run1-basic | g5.xlarge | 352 | 0.001 | 15/70 | ✅ | —                   | Slow learning, val > train acc |
-| Run2-g5-2xlarge | g5.2xlarge | 352 | 0.001 | 29/70 | — | —                   | Model didn’t learn |
-| Run3-g5-2xlarge-lr | g5.2xlarge | 352 | 0.1 | 10/90 | ✅ | —                   | Bad run |
-| Run4-lr-fixes | g5.2xlarge | 176 | 0.05 | 66/90 | ❌ | ~40% (at 30 epochs) | Training improved after fixes |
-| Run5-lr-fixes | g5.2xlarge | 352 | 0.05 | 90 | ✅ | **66%**             | Mixup, Cutmix, label smoothing |
-| Run10-finetune-lr-aug-adamw | g5.2xlarge | 368 | 0.001 | 25 | ✅ | **73.31%**          | AdamW optimizer, lighter aug |
-
+| Run Name                    | Instance | Batch Size | LR | Epochs (ran) | Mixed Precision | Final Val Acc | Notes                          |
+|-----------------------------|-----------|-------------|---|---------------|------------------|-----------|--------------------------------|
+| Dry Run                     | g4dn.xlarge | 210 | — | 2 | ❌ | —         | Pipeline check only            |
+| Run1-basic                  | g5.xlarge | 352 | 0.001 | 15/70 | ✅ | —         | Slow learning, val > train acc |
+| Run2-g5-2xlarge             | g5.2xlarge | 352 | 0.001 | 29/70 | — | —         | Model didn’t learn             |
+| Run3-g5-2xlarge-lr          | g5.2xlarge | 352 | 0.1 | 10/90 | ✅ | —         | Bad run                        |
+| Run4-lr-fixes               | g5.2xlarge | 176 | 0.05 | 66/90 | ❌ | ~40% (at 30 epochs) | Training improved after fixes  |
+| Run5-lr-fixes               | g5.2xlarge | 352 | 0.05 | 90 | ✅ | **66%**   | Mixup, Cutmix, label smoothing |
+| Run10-finetune-lr-aug-adamw | g5.2xlarge | 368 | 0.001 | 25 | ✅ | **74.75%** | AdamW optimizer, lighter aug   |
+| Run11-more-finetune | g5.2xlarge | 368 | 5e-5 | 5 | ✅ |           | Mini run, very low LR          |
 ---
 
 
 ## Final notes and learnings
-
+- Log diagnostics right from the beginning
+- Use less dataloaders, CPU need not be maxed out
+- Pick batch size where GPU is fully u
+- Pick right instance and use the server's volume for dataset
+- 

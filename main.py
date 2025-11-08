@@ -265,22 +265,25 @@ def main(data_path="./content/tiny-imagenet-200",
         stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
+        label_smoothing = 0.1
 
         if finetuning_run:
             # During final epochs of finetuning run, turn off augmentations except basic ones, and reduce LR even further
             maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=switch_epoch, min_lr=2e-5, pbar=None)
             current_cutmix_prob = 0
+            if switch_epoch < 5 or epoch == switch_epoch: # Turn off label smoothing for small finetuning run, or at the end of ft run
+                label_smoothing = 0 # Turn off label smoothing
 
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
                                              ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob,
-                                             logger=tlogger)
+                                             logger=tlogger, label_smoothing=label_smoothing)
         
         # Validation
         print("\n🔍 Validating...")
         val_losses, val_acc = val_loop(
             # ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
-            model, device, val_loader, val_losses, val_acc, use_amp=use_amp
+            model, device, val_loader, val_losses, val_acc, use_amp=use_amp, label_smoothing=label_smoothing
         )
         
         # Print epoch summary
