@@ -9,6 +9,7 @@ from data_augmentation import AlbumentationsImageDataset, HFDatasetWrapper, get_
 import os
 import shutil
 from datasets import load_dataset
+from monitor import visualize_augmentations
 
 def reorganize_val_folder(val_dir):
     """
@@ -32,21 +33,21 @@ def reorganize_val_folder(val_dir):
     print("✅ Validation folder reorganized successfully!")
 
 
-def load_imagenet_dataset(data_path):
-    """
-    Create train/val Albumentations datasets from an ImageNet-style root.
-    Auto-fixes Tiny ImageNet val layout and returns (train_dataset, val_dataset).
-    """
-    train_dir = os.path.join(data_path, "train")
-    val_dir = os.path.join(data_path, "val")
-    reorganize_val_folder(val_dir)
+# def load_imagenet_dataset(data_path):
+#     """
+#     Create train/val Albumentations datasets from an ImageNet-style root.
+#     Auto-fixes Tiny ImageNet val layout and returns (train_dataset, val_dataset).
+#     """
+#     train_dir = os.path.join(data_path, "train")
+#     val_dir = os.path.join(data_path, "val")
+#     reorganize_val_folder(val_dir)
+#
+#     train_dataset = AlbumentationsImageDataset(train_dir, transform=get_train_transform())
+#     val_dataset = AlbumentationsImageDataset(val_dir, transform=get_val_transform())
+#     return train_dataset, val_dataset
 
-    train_dataset = AlbumentationsImageDataset(train_dir, transform=get_train_transform())
-    val_dataset = AlbumentationsImageDataset(val_dir, transform=get_val_transform())
-    return train_dataset, val_dataset
 
-
-def generate_train_val_loader(data_path, batch_size=64, train_transform=True, val_transform=True):
+def generate_train_val_loader(data_path, batch_size=64, train_transform=True, val_transform=True, num_workers=8, mode="full_train"):
     """
     Creates DataLoader objects for training and validation sets.
     
@@ -65,7 +66,7 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, va
     reorganize_val_folder(val_dir)
 
     # Select transforms based on flags
-    train_tf = get_train_transform() if train_transform else None
+    train_tf = get_train_transform(mode) if train_transform else None
     val_tf = get_val_transform() if val_transform else None
 
     # Create datasets
@@ -79,7 +80,7 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, va
         torch.cuda.manual_seed(1)
 
     dataloader_args = dict(
-        batch_size=batch_size, num_workers=8, pin_memory=True, shuffle=True
+        batch_size=batch_size, num_workers=num_workers, pin_memory=True, shuffle=True
     ) if cuda else dict(batch_size=batch_size, shuffle=True)
 
     train_loader = DataLoader(train_dataset, **dataloader_args)
@@ -94,7 +95,7 @@ def generate_train_val_loader(data_path, batch_size=64, train_transform=True, va
     return train_loader, val_loader
 
 
-def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transform=True, num_workers=8):
+def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transform=True, num_workers=8, mode="full_train"):
     """
     Creates DataLoader objects for training and validation sets from Huggingface.
 
@@ -104,22 +105,25 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transf
         val_transform (bool): Apply validation transformations if True
     """
     # ToDo Smita: Code cleanup, keep one function for train_val_loader
-
+    
+    cache_dir = os.getenv("HF_DATASETS_CACHE", "/Data/datasets_cache")
     # Load dataset from huggingface cache dir
     train_dataset = load_dataset(
         "ILSVRC/imagenet-1k",
         split="train",
-        cache_dir="/Data/datasets_cache"
+        cache_dir=cache_dir
     )
+    print(f"✅ Using cache directory: {cache_dir}")
+    print("Sample cache file:", train_dataset.cache_files[0]['filename'])
 
     val_dataset = load_dataset(
         "ILSVRC/imagenet-1k",
         split="validation",
-        cache_dir="/Data/datasets_cache"
+        cache_dir=cache_dir
     )
 
     # Select transforms based on flags
-    train_tf = get_train_transform() if train_transform else None
+    train_tf = get_train_transform(mode) if train_transform else None
     val_tf = get_val_transform() if val_transform else None
 
     train_dataset = HFDatasetWrapper(train_dataset, transform=train_tf)
@@ -129,9 +133,14 @@ def generate_hf_train_val_loader(batch_size=64, train_transform=True, val_transf
     cuda = torch.cuda.is_available()
     torch.manual_seed(1)
 
+    # Visualize some images with augmentations
+    visualize_augmentations(train_dataset, save_path="aug_preview_finetune.png")
+
+    # Note: If transforms are dynamically changing mid-training, ie switching from heavy to light augmentations, then
+    # persistent_workers must be False, else the changes will not be picked up by Dataloader
     dataloader_args = dict(
         batch_size=batch_size, num_workers=num_workers, pin_memory=True, shuffle=True
-    ) if cuda else dict(batch_size=batch_size, shuffle=True)
+    ) if cuda else dict(batch_size=batch_size, shuffle=True, persistent_workers=True)
 
     train_loader = DataLoader(train_dataset, **dataloader_args)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)

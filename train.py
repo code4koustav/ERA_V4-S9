@@ -1,13 +1,30 @@
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 from data_augmentation import mixup_cutmix_data
+from monitor import get_system_stats, log_ema_diff, get_post_clip_gradnorm, print_diagnostics
 
 
-def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4):
-    return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+def get_sgd_optimizer(model, lr, momentum=0.9, weight_decay=5e-4, nesterov=False):
+    optimizer = torch.optim.SGD(
+        model.parameters(),
+        lr=lr,
+        momentum=momentum,
+        weight_decay=weight_decay,
+        nesterov=nesterov
+    )
+    return optimizer
+
+
+def get_adam_optimizer(model, lr):
+    #base_lr = lr
+    #backbone_lr = base_lr * 0.5  # half of that for pretrained layers
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4, betas=(0.9, 0.999))
+    return optimizer
 
 
 def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
@@ -30,15 +47,52 @@ def get_lr_scheduler(optimizer, num_epochs, steps_per_epoch, learning_rate):
     return scheduler
 
 
-def save_checkpoint(model, optimizer, scaler, epoch, best_loss, epoch_val_loss, path, use_amp):
+def get_cosine_scheduler(optimizer, max_lr, num_epochs, steps_per_epoch, warmup_epochs=2, start_factor=0.01):
+    # Fine-tuning scheduler: short warmup + cosine decay
+
+    total_steps = num_epochs * steps_per_epoch
+    warmup_steps = warmup_epochs * steps_per_epoch
+    tmax = total_steps - warmup_steps
+    eta_min = 1e-6
+
+    # # manually set optimizer LR start (low warmup start) -- not needed, start_factor will take care of this
+    # for g in optimizer.param_groups:
+    #     g['lr'] = max_lr / 10
+
+    warmup = LinearLR(
+        optimizer,
+        start_factor=start_factor, # start at 1% of base LR
+        total_iters=warmup_steps # number of scheduler.step() calls during warmup
+    )
+    cosine = CosineAnnealingLR(
+        optimizer,
+        T_max=tmax, # number of remaining updates
+        eta_min=eta_min
+    )
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup, cosine],
+        milestones=[warmup_steps] # switch to cosine after warmup
+    )
+    return scheduler, tmax, warmup_steps, eta_min
+
+
+def save_checkpoint(model, ema_model, optimizer, scheduler, scaler, epoch, best_loss, epoch_val_loss,
+                    path, use_amp, lr_scheduler_type, lr_scheduler_params):
     checkpoint = {
         "epoch": epoch,
         "model_state": model.state_dict(),
+        "ema_model_state": ema_model.state_dict(),
         "optimizer_state": optimizer.state_dict(),
         'best_val_loss': best_loss,
         'epoch_val_loss': epoch_val_loss,
+        "lr_scheduler_type": lr_scheduler_type,
+        "lr_scheduler_params": lr_scheduler_params,
         # Add any other relevant information like hyperparameters
     }
+
+    if hasattr(scheduler, "state_dict"):
+        checkpoint["scheduler_state"] = scheduler.state_dict()
 
     # Save AMP scaler state only if AMP is enabled
     if use_amp:
@@ -48,83 +102,75 @@ def save_checkpoint(model, optimizer, scaler, epoch, best_loss, epoch_val_loss, 
     print(f"✅ Checkpoint saved to {path}")
 
 
-def load_checkpoint(model, optimizer, scaler, path, device, use_amp):
+def load_checkpoint(model, ema_model, optimizer, scheduler, scaler, path, device, use_amp,
+                    current_lr_type, current_lr_params, steps_per_epoch):
+    """
+    Load checkpoint safely. Detect LR scheduler mismatch to avoid optimizer/scheduler state errors.
+    Returns: start_epoch, best_loss
+    """
     checkpoint = torch.load(path, map_location=device)
-    model.load_state_dict(checkpoint["model_state"])
-    optimizer.load_state_dict(checkpoint["optimizer_state"])
-    best_loss = checkpoint['best_val_loss']
 
-    if use_amp and "scaler_state" in checkpoint:
-        scaler.load_state_dict(checkpoint["scaler_state"])
+    # Load model + EMA model weights
+    model.load_state_dict(checkpoint["model_state"])
+    if "ema_model_state" in checkpoint:
+        ema_model.load_state_dict(checkpoint["ema_model_state"])
+    else:
+        # First time: initialize EMA from main model
+        ema_model.load_state_dict(model.state_dict())
+
+    # --------------------------
+    # Detect LR scheduler mismatch
+    # --------------------------
+    checkpoint_lr_type = checkpoint.get("lr_scheduler_type")
+    checkpoint_lr_params = checkpoint.get("lr_scheduler_params", {})
+    lr_mismatch = (checkpoint_lr_type != current_lr_type) or (checkpoint_lr_params != current_lr_params)
+    if lr_mismatch:
+        print(f"[Resume] LR scheduler mismatch detected: checkpoint={checkpoint_lr_type}, current={current_lr_type}")
+        print(f"[Resume] Loaded {path} weights, Skipping optimizer/scaler/scheduler state loading.")
+        load_opt_scaler_scheduler = False
+    else:
+        load_opt_scaler_scheduler = True
 
     start_epoch = checkpoint.get("epoch", 0) + 1
+    best_loss = checkpoint.get('best_val_loss', float('inf'))
+
+    # --------------------------
+    # Load optimizer/scaler/scheduler if safe
+    # --------------------------
+    if load_opt_scaler_scheduler:
+        optimizer.load_state_dict(checkpoint["optimizer_state"])
+        if use_amp and "scaler_state" in checkpoint:
+            scaler.load_state_dict(checkpoint["scaler_state"])
+            print(f"[Resume] Scaler state restored from checkpoint for AMP.")
+
+        if "scheduler_state" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler_state"])
+            print(f"[Resume] Scheduler state restored from checkpoint.")
+        else:
+            # Fast-forward scheduler to current epoch so it resumes from the correct LR step
+            completed_steps = start_epoch * steps_per_epoch
+            for _ in range(completed_steps):
+                scheduler.step()
+            print(f"[Resume] Scheduler fast-forwarded to epoch {start_epoch}, step {completed_steps}.")
+
+        print(f"[Resume] Current LR = {optimizer.param_groups[0]['lr']:.6f}")
+
+
     print(f"✅ Checkpoint loaded. Resuming from epoch {start_epoch}")
 
     return start_epoch, best_loss
 
 
-def print_diagnostics(pbar, model, scaler, batch_idx, use_amp):
-    """
-    Print gradient diagnostics:
-      - Total & max grad norms
-      - NaN / Inf / Zero gradient checks
-      - GradScaler info (if AMP enabled)
-    """
-    total_norm_sq = 0.0
-    max_norm = 0.0
-    grad_none_count = 0
-    nan_layers, inf_layers, zero_layers = [], [], []
-
-    #Print Gradient norm for debugging. If grad norm ≈ 0 for many updates, learning is not happening.
-    # If inf/nan, there's numerical instability.
-    print("\n=== Gradient norms per layer (first few layers) ===")
-    for name, p in model.named_parameters():
-        if p.grad is not None:
-            grad_data = p.grad.data
-            grad_norm = grad_data.norm(2).item()
-            total_norm_sq += grad_norm ** 2
-            max_norm = max(max_norm, grad_norm)
-
-            # Detect anomalies
-            if torch.isnan(grad_data).any():
-                nan_layers.append(name)
-            elif torch.isinf(grad_data).any():
-                inf_layers.append(name)
-            elif torch.allclose(grad_data, torch.zeros_like(grad_data)):
-                zero_layers.append(name)
-            # count += 1
-            # if count <= 10:  # limit printout
-            #     print(f"{name:<40s} grad_norm={grad_norm:.6e}")
-        else:
-            grad_none_count += 1
-            # Only print first few missing grads to avoid spam
-            if grad_none_count <= 5:
-                print(f"{name:<40s} grad=None")
-
-    total_norm = total_norm_sq ** 0.5
-    pbar.write(f"[Grad Debug] Step {batch_idx}: total_norm={total_norm:.6e}, max_norm={max_norm:.6e}")
-
-    # Print anomalies (if any)
-    if nan_layers:
-        pbar.write(f"[Warning] NaN gradients in: {', '.join(nan_layers[:5])}{'...' if len(nan_layers) > 5 else ''}")
-    if inf_layers:
-        pbar.write(f"[Warning] Inf gradients in: {', '.join(inf_layers[:5])}{'...' if len(inf_layers) > 5 else ''}")
-    if zero_layers:
-        pbar.write(f"[Info] Zero gradients in: {', '.join(zero_layers[:5])}{'...' if len(zero_layers) > 5 else ''}")
-
-    if not (nan_layers or inf_layers or zero_layers):
-        pbar.write("[Grad Debug] No NaN/Inf/Zero gradients detected ✅")
-
-    # AMP / GradScaler info
-    if use_amp and scaler is not None:
-        scale_val = scaler.get_scale()
-        pbar.write(f"[Grad Debug] GradScaler scale={scale_val:.1f}")
-    # else:
-    #     pbar.write(f"[Grad Debug] AMP disabled — GradScaler inactive.")
+def update_ema(model, ema_model, decay):
+    with torch.no_grad():
+        for ema_p, p in zip(ema_model.parameters(), model.parameters()):
+            # ema_p.copy_(ema_p * decay + p * (1 - decay))
+            ema_p.data.mul_(decay).add_(p.data, alpha=1 - decay)
 
 
-def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
-               accumulation_steps=4, use_amp=True, debug_every=200):
+def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, epoch,
+               accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999,
+               current_cutmix_prob=0.5, logger=None):
     """
     Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
@@ -133,7 +179,10 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     correct = 0
     processed = 0
     global_step = 0
+    gpu_utils = []
     optimizer.zero_grad(set_to_none=True)
+    pre_clip_norm = 0
+    post_clip_norm = 0
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -144,7 +193,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
 
         # Apply MixUp or CutMix
         data, targets_a, targets_b, lam = mixup_cutmix_data(
-            data, target, alpha=0.2, cutmix_prob=0.5,
+            data, target, alpha=0.2, cutmix_prob=current_cutmix_prob,
             use_cutmix=True, use_mixup=True
         )
 
@@ -179,20 +228,13 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                 pbar.write(f"step {global_step} LR={optimizer.param_groups[0]['lr']:.6f} batch_loss={loss.item() * accumulation_steps:.4f}")
             global_step += 1
 
-            # 🧩 2️⃣ Gradient norm diagnostic every N steps
-            if batch_idx % debug_every == 0:
-                print_diagnostics(pbar, model, scaler, batch_idx, use_amp)
-                pbar.write(f"[MixAug Debug] lam={lam:.3f} | "
-                           f"targets_a[0]={targets_a[0].item()} | targets_b[0]={targets_b[0].item()}")
-
             if use_amp:
                 scaler.unscale_(optimizer)
 
             # Add gradient clipping to prevent instability in the first few thousand steps.
             # clip_grad_norm clips the gradients in place, and returns the total gradient norm before clipping
-            total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            if batch_idx % debug_every == 0:
-                pbar.write(f"[Grad Debug] Before step: total_norm={total_norm:.2e}")
+            pre_clip_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            post_clip_norm = get_post_clip_gradnorm(model)
 
             # ✅ Optimizer step (AMP vs non-AMP)
             if use_amp:
@@ -203,6 +245,15 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                     pbar.write(f"[Warning] GradScaler scale dropped below 1 — possible inf/NaN gradients.")
             else:
                 optimizer.step()
+
+            # Update EMA model
+            update_ema(model, ema_model, ema_decay)
+
+            # Check EMA update. If EMA is working, this difference should start small and gradually increase, reflecting smoothing.
+            if batch_idx < 20 or batch_idx % 200 == 0:  # log every 100 batches
+                log_ema_diff(model, ema_model, step=batch_idx, pbar=None)
+                print_diagnostics(pbar, model, scaler, batch_idx, use_amp, ema_model)
+
 
             optimizer.zero_grad(set_to_none=True)
             # step LR scheduler once per optimizer update (=> after each batch (OneCycleLR steps per batch))
@@ -216,12 +267,35 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         acc = 100.0 * correct / processed
         train_acc.append(acc)
 
+
+        stats = get_system_stats()  # CPU, RAM, GPU
+        if logger:
+            logger.log(
+                epoch=epoch,
+                batch_idx=batch_idx,
+                batch_loss=loss.item() * accumulation_steps,
+                batch_acc=acc,
+                lr=current_lr,
+                grad_norm=post_clip_norm,
+                gpu_util=stats["gpu"],
+                cpu_util=stats["cpu"],
+                ram_util=stats["ram"],
+                gpu_mem=stats["gpu_mem"],
+            )
+
         # Update tqdm
+        gpu_util = stats["gpu"] if stats["gpu"] is not None else "N/A"
+        gpu_mem = stats["gpu_mem"] if stats["gpu_mem"] is not None else "N/A"
         pbar.set_description(
             f"Loss={loss.item() * accumulation_steps:.4f} | "
-            f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f}"
+            f"Batch={batch_idx} | Acc={acc:.2f}% | LR={current_lr:.6f} | "
+            f"GradNorm(Pre/Post)={pre_clip_norm:.4f}/{post_clip_norm:.4f} | GPU Util={gpu_util} | GPU mem={gpu_mem}"
         )
 
+    if gpu_utils:
+        avg_util = sum(gpu_utils) / len(gpu_utils)
+        print(f"✅ Avg GPU utilization this epoch: {avg_util:.1f}%")
+        
     return train_losses, train_acc
 
 
