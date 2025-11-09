@@ -4,7 +4,7 @@ from torch.optim.lr_scheduler import OneCycleLR
 from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
-from data_augmentation import mixup_cutmix_data
+from data_augmentation import mixup_cutmix_data, get_late_stage_transforms
 from monitor import get_system_stats, log_ema_diff, get_post_clip_gradnorm, print_diagnostics
 
 
@@ -161,6 +161,41 @@ def load_checkpoint(model, ema_model, optimizer, scheduler, scaler, path, device
     return start_epoch, best_loss
 
 
+def maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=20, min_lr=2e-5, pbar=None):
+    """
+    Dynamically switch to fine-tune phase:
+      - lighter augmentations
+      - lower LR
+      (EMA intentionally disabled for stability)
+    """
+
+    if epoch >= switch_epoch:
+        print(f"[Phase Switch] Epoch {epoch}: switching to light augmentations & lower LR")
+        if pbar:
+            pbar.write(f"[Phase Switch] Epoch {epoch}: switching to light augmentations & lower LR")
+
+        # --- Update augmentations ---
+        # if hasattr(train_loader.dataset, "transform"):
+        dataset = getattr(train_loader, "dataset", None)
+        if dataset is not None and hasattr(dataset, "transform"):
+            # train_loader.dataset.transform = get_late_stage_transforms()
+            dataset.transform = get_late_stage_transforms()
+            print("✓ Updated training augmentations for fine-tuning phase.")
+            if pbar:
+                pbar.write("✓ Updated training augmentations for fine-tuning phase.")
+
+        # --- Reduce LR by 2× and floor it at min_lr ---
+        # Only do this if switch_epoch is not too low. otherwise run is too short
+        if switch_epoch >= 15:
+            for param_group in optimizer.param_groups:
+                old_lr = param_group["lr"]
+                new_lr = max(old_lr * 0.5, min_lr)
+                param_group["lr"] = new_lr
+            print(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
+            if pbar:
+                pbar.write(f"✓ Reduced LR to {optimizer.param_groups[0]['lr']:.6f}")
+
+
 def update_ema(model, ema_model, decay):
     with torch.no_grad():
         for ema_p, p in zip(ema_model.parameters(), model.parameters()):
@@ -170,7 +205,7 @@ def update_ema(model, ema_model, decay):
 
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, epoch,
                accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999,
-               current_cutmix_prob=0.5, logger=None):
+               current_cutmix_prob=0.5, logger=None, label_smoothing=0.1):
     """
     Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
@@ -187,15 +222,19 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     current_lr = optimizer.param_groups[0]["lr"]
+    mixup_active = current_cutmix_prob > 0.0  # current_mixup_prob > 0.0
 
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
         # Apply MixUp or CutMix
-        data, targets_a, targets_b, lam = mixup_cutmix_data(
-            data, target, alpha=0.2, cutmix_prob=current_cutmix_prob,
-            use_cutmix=True, use_mixup=True
-        )
+        if mixup_active:
+            data, targets_a, targets_b, lam = mixup_cutmix_data(
+                data, target, alpha=0.2, cutmix_prob=current_cutmix_prob,
+                use_cutmix=True, use_mixup=True
+            )
+        else:
+            targets_a, targets_b, lam = target, target, 1.0  # fall back to standard mode
 
         # 🧠 Check input stats for zero / NaN inputs. Expected: mean ≈ 0, std ≈ 1, min/max roughly around -2.1 and +2.6
         if batch_idx == 0:  # print for only first batch to avoid spam
@@ -209,8 +248,12 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
             # ✅Compute smoothed loss for both targets (MixUp / CutMix)
-            loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=0.1) \
-                   + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=0.1)
+            if mixup_active:
+                loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=label_smoothing) \
+                       + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=label_smoothing)
+            else:
+                loss = F.cross_entropy(y_pred, target, label_smoothing=label_smoothing)
+
             loss = loss / accumulation_steps
 
         # Track unscaled loss (for logging)
@@ -299,7 +342,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     return train_losses, train_acc
 
 
-def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
+def val_loop(model, device, val_loader, val_losses, val_acc, use_amp, label_smoothing=0.1):
     """
     Validation loop for one epoch with mixed precision.
     """
@@ -314,7 +357,7 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp):
         for data, target in tqdm(val_loader, desc="Validating", leave=False):
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             output = model(data)
-            val_loss += F.cross_entropy(output, target, reduction='sum', label_smoothing=0.1).item()
+            val_loss += F.cross_entropy(output, target, reduction='sum', label_smoothing=label_smoothing).item()
             pred = output.argmax(dim=1)
             correct += pred.eq(target).sum().item()
 
