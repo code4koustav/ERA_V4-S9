@@ -224,9 +224,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     current_lr = optimizer.param_groups[0]["lr"]
     mixup_active = (current_mixup_prob > 0.0) or (current_cutmix_prob > 0.0)
-    label_smoothing_when_mix = 0.0  # don't additionally smooth when using mixup
+
     print(f"Training loop params: current_lr={current_lr}, mixup_active={mixup_active}, current_mixup_prob={current_mixup_prob},"
-          f"current_cutmix_prob={current_cutmix_prob}, label_smoothing_when_mix={label_smoothing_when_mix}, label_smoothing={label_smoothing}")
+          f"current_cutmix_prob={current_cutmix_prob}, label_smoothing={label_smoothing}")
 
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
@@ -253,8 +253,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             y_pred = model(data)
             # ✅Compute smoothed loss for both targets (MixUp / CutMix)
             if mixup_active and lam < 1.0:
-                loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=label_smoothing_when_mix) \
-                       + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=label_smoothing_when_mix)
+                loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=label_smoothing) \
+                       + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=label_smoothing)
             else:
                 loss = F.cross_entropy(y_pred, target, label_smoothing=label_smoothing)
 

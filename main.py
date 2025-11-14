@@ -182,7 +182,7 @@ def main(data_path="./content/tiny-imagenet-200",
         warmup_epochs = num_epochs // 10
         start_factor = 0.01
         if warmup_epochs == 0 or switch_epoch <= 5:
-            warmup_epochs = 1
+            warmup_epochs = 2
             start_factor = 0.1
         scheduler, tmax_steps, warmup_steps, eta_min = get_cosine_scheduler(optimizer, learning_rate, num_epochs,
                                                                             steps_per_epoch, warmup_epochs, start_factor)
@@ -266,18 +266,18 @@ def main(data_path="./content/tiny-imagenet-200",
         stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
         current_mixup_prob = 0.5 # For main training run. Use helper function to bring down to 0..
-        label_smoothing = 0.1 # if cutmix/mixup is enabled, this will be set to 0 in training loop to avoid over regularization
+        label_smoothing = 0.1 # ToDo: if cutmix/mixup is enabled, set to 0 in training loop to avoid over regularization?
 
         if finetuning_run:
             # During final epochs of finetuning run, turn off augmentations except basic ones, and reduce LR even further
             maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=switch_epoch, min_lr=2e-5, pbar=None)
-            label_smoothing = 0
+            label_smoothing = 0.05
             current_cutmix_prob = 0
             current_mixup_prob = 0.05
 
             # Turn label smoothing very low for small finetuning run, or at the end of ft run. Making 0 caused overfitting in last 5 epochs
             if switch_epoch < 5 or epoch == switch_epoch:
-                label_smoothing = 0.05
+                label_smoothing = 0.07
                 current_cutmix_prob = 0
                 current_mixup_prob = 0.0
 
@@ -485,16 +485,16 @@ if __name__ == "__main__":
         data_path="",
         zip_path="",
         batch_size=368, #368,#384 # Increase if you have enough GPU memory
-        num_epochs=6,
-        learning_rate=1e-4,
+        num_epochs=5,
+        learning_rate=2e-4,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run12-more-finetune",
+        experiment_name="Run13-more-finetune",
         resume_training=False, # Don't load optimizer/schduler states, only model weights
-        resume_weights_file="run10-best.pth",
+        resume_weights_file="run12-best.pth",
         finetuning_run=True,
-        switch_epoch=2
+        switch_epoch=3
     )
