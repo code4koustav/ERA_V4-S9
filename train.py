@@ -218,6 +218,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     optimizer.zero_grad(set_to_none=True)
     pre_clip_norm = 0
     post_clip_norm = 0
+    epoch_loss_sum = 0
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -256,9 +257,6 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
                 loss = F.cross_entropy(y_pred, target, label_smoothing=label_smoothing)
 
             loss = loss / accumulation_steps
-
-        # Track unscaled loss (for logging)
-        train_losses.append(loss.detach().item() * accumulation_steps)
 
         # ✅ Backward pass (AMP vs non-AMP)
         if use_amp: # scale the loss
@@ -318,7 +316,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             processed += data.size(0)
             correct += correct_batch
             acc = 100.0 * (correct / processed)
-            train_acc.append(acc)
+
+        # Loss tracking
+        epoch_loss_sum += loss.detach().item() * accumulation_steps
 
         stats = get_system_stats()  # CPU, RAM, GPU
         if logger:
@@ -348,6 +348,14 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         avg_util = sum(gpu_utils) / len(gpu_utils)
         print(f"✅ Avg GPU utilization this epoch: {avg_util:.1f}%")
 
+    # at epoch end (after training loop)
+    epoch_train_acc = 100.0 * (correct / processed)
+    epoch_train_loss = epoch_loss_sum / processed
+
+    # train_acc_epoch_list.append(epoch_train_acc)
+    train_acc.append(epoch_train_acc)
+    train_losses.append(epoch_train_loss)
+
     return train_losses, train_acc
 
 
@@ -358,6 +366,7 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp, label_smoo
     model.eval()
     val_loss = 0.0
     correct = 0
+    total = 0.0
 
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -366,17 +375,26 @@ def val_loop(model, device, val_loader, val_losses, val_acc, use_amp, label_smoo
         for data, target in tqdm(val_loader, desc="Validating", leave=False):
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
             output = model(data)
+
+            # Sum loss over the batch (reduction='sum')
             val_loss += F.cross_entropy(output, target, reduction='sum', label_smoothing=label_smoothing).item()
+
+            # Accuracy
             pred = output.argmax(dim=1)
             correct += pred.eq(target).sum().item()
+            total += target.size(0)
 
-    val_loss /= len(val_loader.dataset)  # per-sample average loss
-    acc = 100.0 * correct / len(val_loader.dataset)
 
-    val_losses.append(val_loss)
-    val_acc.append(acc)
+    # Compute per-sample average loss
+    val_loss_epoch = val_loss / total
 
-    print(f"\nVal set: Avg loss: {val_loss:.4f}, "
-          f"Accuracy: {correct}/{len(val_loader.dataset)} ({acc:.2f}%)\n")
+    # Compute epoch-level accuracy
+    val_acc_epoch = 100.0 * correct / total
+
+    val_losses.append(val_loss_epoch)
+    val_acc.append(val_acc_epoch)
+
+    print(f"\nValidation set: Avg loss: {val_loss_epoch:.4f}, "
+          f"Accuracy: {correct}/{total} ({val_acc_epoch:.2f}%)\n")
 
     return val_losses, val_acc

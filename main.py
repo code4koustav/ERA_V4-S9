@@ -319,9 +319,9 @@ def main(data_path="./content/tiny-imagenet-200",
         torch.save(ema_model.state_dict(), f"epoch-{epoch}-ema.pth")
 
         # Aggregate epoch metrics
-        train_loss_epoch = sum(train_losses[-len(train_loader):]) / len(train_loader)
+        train_loss_epoch = train_losses[-1]
         train_acc_epoch = train_acc[-1]
-        val_loss_epoch = sum(val_losses[-len(val_loader):]) / len(val_loader)
+        val_loss_epoch = val_losses[-1]
         val_acc_epoch = val_acc[-1]
 
         # Check for EMA drift
