@@ -249,6 +249,7 @@ def main(data_path="./content/tiny-imagenet-200",
 
     #If abs_diff is near 0 and rel_diff << 1e-3 → EMA is correctly initialized. If ema_requires_grad is True, set it to false for EMA params
     abs_diff, rel_diff = ema_sanity_checks(model, ema_model, ema_decay)
+    ema_model.eval()
 
 
     # Create a logger
@@ -289,8 +290,8 @@ def main(data_path="./content/tiny-imagenet-200",
         # Validation
         print("\n🔍 Validating...")
         val_losses, val_acc = val_loop(
-            # ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
-            model, device, val_loader, val_losses, val_acc, use_amp=use_amp, label_smoothing=label_smoothing
+            ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp, label_smoothing=label_smoothing
+            # model, device, val_loader, val_losses, val_acc, use_amp=use_amp, label_smoothing=label_smoothing
         )
         
         # Print epoch summary
