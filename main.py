@@ -264,18 +264,21 @@ def main(data_path="./content/tiny-imagenet-200",
         print("\n🔄 Training...")
         stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
+        current_mixup_prob = 0.5 # For main training run. Use helper function to bring down to 0..
         label_smoothing = 0.1 # if cutmix/mixup is enabled, this will be set to 0 in training loop to avoid over regularization
 
         if finetuning_run:
             # During final epochs of finetuning run, turn off augmentations except basic ones, and reduce LR even further
             maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=switch_epoch, min_lr=2e-5, pbar=None)
+            label_smoothing = 0
             current_cutmix_prob = 0
             current_mixup_prob = 0.05
-            # label_smoothing = 0.05
 
             # Turn label smoothing very low for small finetuning run, or at the end of ft run. Making 0 caused overfitting in last 5 epochs
             if switch_epoch < 5 or epoch == switch_epoch:
                 label_smoothing = 0.05
+                current_cutmix_prob = 0
+                current_mixup_prob = 0.0
 
         print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}, label_smoothing={label_smoothing}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
