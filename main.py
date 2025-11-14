@@ -188,7 +188,7 @@ def main(data_path="./content/tiny-imagenet-200",
                                                                             steps_per_epoch, warmup_epochs, start_factor)
         lr_scheduler_type = "CosineAnnealingLR",
         lr_scheduler_params = {"T_max": tmax_steps, "warmup_steps": warmup_steps, "eta_min": eta_min}
-        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs, start_factor={start_factor}")
+        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs, start_factor={start_factor}, switch_epoch={switch_epoch}")
     else:
         # Learning Rate Strategy while training from scratch: OneCycleLR
         # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
@@ -484,16 +484,16 @@ if __name__ == "__main__":
         data_path="",
         zip_path="",
         batch_size=368, #368,#384 # Increase if you have enough GPU memory
-        num_epochs=5,
+        num_epochs=6,
         learning_rate=1e-4,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run11-more-finetune",
+        experiment_name="Run12-more-finetune",
         resume_training=False, # Don't load optimizer/schduler states, only model weights
         resume_weights_file="run10-best.pth",
         finetuning_run=True,
-        switch_epoch=1
+        switch_epoch=2
     )

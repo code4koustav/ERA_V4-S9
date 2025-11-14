@@ -225,6 +225,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     current_lr = optimizer.param_groups[0]["lr"]
     mixup_active = (current_mixup_prob > 0.0) or (current_cutmix_prob > 0.0)
     label_smoothing_when_mix = 0.0  # don't additionally smooth when using mixup
+    print(f"Training loop params: current_lr={current_lr}, mixup_active={mixup_active}, current_mixup_prob={current_mixup_prob},"
+          f"current_cutmix_prob={current_cutmix_prob}, label_smoothing_when_mix={label_smoothing_when_mix}, label_smoothing={label_smoothing}")
 
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
