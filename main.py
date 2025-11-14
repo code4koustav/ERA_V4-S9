@@ -264,7 +264,6 @@ def main(data_path="./content/tiny-imagenet-200",
         print("\n🔄 Training...")
         stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
-        print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
         label_smoothing = 0.1
 
         if finetuning_run:
@@ -274,6 +273,7 @@ def main(data_path="./content/tiny-imagenet-200",
             if switch_epoch < 5 or epoch == switch_epoch: # Turn off label smoothing for small finetuning run, or at the end of ft run
                 label_smoothing = 0 # Turn off label smoothing
 
+        print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}, label_smoothing={label_smoothing}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
                                              ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob,
@@ -478,7 +478,7 @@ if __name__ == "__main__":
         zip_path="",
         batch_size=368, #368,#384 # Increase if you have enough GPU memory
         num_epochs=5,
-        learning_rate=5e-5,
+        learning_rate=1e-4,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=12,
