@@ -320,7 +320,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             acc = 100.0 * (correct / processed)
 
         # Loss tracking
-        epoch_loss_sum += loss.detach().item() * accumulation_steps
+        raw_loss = loss.detach().item() * accumulation_steps  # undo loss/accumulation
+        batch_size = data.size(0)
+        epoch_loss_sum += raw_loss * batch_size
 
         stats = get_system_stats()  # CPU, RAM, GPU
         if logger:
