@@ -304,14 +304,21 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
             scheduler.step()
             current_lr = optimizer.param_groups[0]["lr"]
 
-        # Accuracy
-        pred = y_pred.argmax(dim=1)
-        correct += pred.eq(target).sum().item()
-        processed += len(data)
-        acc = 100.0 * correct / processed
-        train_acc.append(acc)
-
         # --- Accuracy tracking (mix-aware) ---
+        with torch.no_grad():
+            preds = y_pred.argmax(dim=1)
+            if mixup_active and lam < 1.0:
+                correct_a = preds.eq(targets_a).sum().item()
+                correct_b = preds.eq(targets_b).sum().item()
+                # mix-aware fractional correct
+                correct_batch = lam * correct_a + (1.0 - lam) * correct_b
+            else:
+                correct_batch = preds.eq(target).sum().item()
+
+            processed += data.size(0)
+            correct += correct_batch
+            acc = 100.0 * (correct / processed)
+            train_acc.append(acc)
 
         stats = get_system_stats()  # CPU, RAM, GPU
         if logger:
@@ -340,7 +347,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     if gpu_utils:
         avg_util = sum(gpu_utils) / len(gpu_utils)
         print(f"✅ Avg GPU utilization this epoch: {avg_util:.1f}%")
-        
+
     return train_losses, train_acc
 
 
