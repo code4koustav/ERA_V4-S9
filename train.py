@@ -204,8 +204,8 @@ def update_ema(model, ema_model, decay):
 
 
 def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc, epoch,
-               accumulation_steps=4, use_amp=True, debug_every=200, ema_model=None, ema_decay=0.9999,
-               current_cutmix_prob=0.5, logger=None, label_smoothing=0.1):
+               accumulation_steps=4, use_amp=True, ema_model=None, ema_decay=0.9999,
+               current_cutmix_prob=0.5, current_mixup_prob=0.5, logger=None, label_smoothing=0.1):
     """
     Training loop for one epoch with gradient accumulation, mixed precision, OneCycleLR per batch, and LR logging
     """
@@ -222,7 +222,8 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
     # On some GPUs (A100, H100, etc.) FP16 underflows. Use torch.bfloat16 instead if supported
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     current_lr = optimizer.param_groups[0]["lr"]
-    mixup_active = current_cutmix_prob > 0.0  # current_mixup_prob > 0.0
+    mixup_active = (current_mixup_prob > 0.0) or (current_cutmix_prob > 0.0)
+    label_smoothing_when_mix = 0.0  # don't additionally smooth when using mixup
 
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
@@ -230,7 +231,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         # Apply MixUp or CutMix
         if mixup_active:
             data, targets_a, targets_b, lam = mixup_cutmix_data(
-                data, target, alpha=0.2, cutmix_prob=current_cutmix_prob,
+                data, target, alpha=0.2, cutmix_prob=current_cutmix_prob, mixup_prob=current_mixup_prob,
                 use_cutmix=True, use_mixup=True
             )
         else:
@@ -248,9 +249,9 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         with autocast(enabled=use_amp, dtype=dtype):
             y_pred = model(data)
             # ✅Compute smoothed loss for both targets (MixUp / CutMix)
-            if mixup_active:
-                loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=label_smoothing) \
-                       + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=label_smoothing)
+            if mixup_active and lam < 1.0:
+                loss = lam * F.cross_entropy(y_pred, targets_a, label_smoothing=label_smoothing_when_mix) \
+                       + (1 - lam) * F.cross_entropy(y_pred, targets_b, label_smoothing=label_smoothing_when_mix)
             else:
                 loss = F.cross_entropy(y_pred, target, label_smoothing=label_smoothing)
 
@@ -310,6 +311,7 @@ def train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_
         acc = 100.0 * correct / processed
         train_acc.append(acc)
 
+        # --- Accuracy tracking (mix-aware) ---
 
         stats = get_system_stats()  # CPU, RAM, GPU
         if logger:
