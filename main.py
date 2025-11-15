@@ -276,7 +276,8 @@ def main(data_path="./content/tiny-imagenet-200",
             current_mixup_prob = 0.05
 
             # Turn label smoothing very low for small finetuning run, or at the end of ft run. Making 0 caused overfitting in last 5 epochs
-            if switch_epoch < 5 or epoch == switch_epoch:
+            # if switch_epoch < 5 or epoch == switch_epoch:
+            if epoch > switch_epoch:
                 label_smoothing = 0.07
                 current_cutmix_prob = 0
                 current_mixup_prob = 0.0

@@ -4,20 +4,35 @@
 ## 📊 Summary Table
 
 | Run Name                    | Instance | Batch Size | LR | Epochs (ran) | Mixed Precision | Final Val Acc | Notes                          |
-|-----------------------------|-----------|-------------|---|---------------|------------------|-----------|--------------------------------|
-| Dry Run                     | g4dn.xlarge | 210 | — | 2 | ❌ | —         | Pipeline check only            |
-| Run1-basic                  | g5.xlarge | 352 | 0.001 | 15/70 | ✅ | —         | Slow learning, val > train acc |
-| Run2-g5-2xlarge             | g5.2xlarge | 352 | 0.001 | 29/70 | — | —         | Model didn’t learn             |
-| Run3-g5-2xlarge-lr          | g5.2xlarge | 352 | 0.1 | 10/90 | ✅ | —         | Bad run                        |
-| Run4-lr-fixes               | g5.2xlarge | 176 | 0.05 | 66/90 | ❌ | ~40% (at 30 epochs) | Training improved after fixes  |
-| Run5-lr-fixes               | g5.2xlarge | 352 | 0.05 | 90 | ✅ | **66%**   | Mixup, Cutmix, label smoothing |
-| Run10-finetune-lr-aug-adamw | g5.2xlarge | 368 | 0.001 | 25 | ✅ | **74.75%** | AdamW optimizer, lighter aug   |
-| Run11-more-finetune | g5.2xlarge | 368 | 5e-5 | 5 | ✅ |           | Mini run, very low LR          |  
+|-----------------------------|-----------|-------------|---|--------------|------------------|-----------|--------------------------------|
+| [Dry Run](#1-dry-run--pipeline-check)         | g4dn.xlarge | 210 | — | 2            | ❌ | —         | Pipeline check only            |
+| [Run1-basic](#2-run1--basic)                  | g5.xlarge | 352 | 0.001 | 15/70        | ✅ | —         | Slow learning, val > train acc |
+| [Run2-g5-2xlarge](#3-run2--g5-2xlarge)             | g5.2xlarge | 352 | 0.001 | 29/70        | — | —         | Model didn’t learn             |
+| [Run3-g5-2xlarge-lr](#4-run3--g5-2xlarge-with-higher-lr)          | g5.2xlarge | 352 | 0.1 | 10/90        | ✅ | —         | Bad run                        |
+| [Run4-lr-fixes](#5-run4--lr-fixes)               | g5.2xlarge | 176 | 0.05 | 66/90        | ❌ | ~40% (at 30 epochs) | Training improved after fixes  |
+| [Run5-lr-fixes](#6-run5--lr-fixes-continuation)               | g5.2xlarge | 352 | 0.05 | 90/90        | ✅ | **66%**   | Mixup, Cutmix, label smoothing |
+| [Run10-finetune-lr-aug-adamw](#8-run10---finetuning) | g5.2xlarge | 368 | 0.001 | 25/25        | ✅ | **74.75%** | AdamW optimizer, lighter aug   |
+| [Run11-more-finetune](#9-run11---more-finetuning)         | g5.2xlarge | 368 | 5e-5 | 5/5          | ✅ |           | Mini run, very low LR          |  
+
+
+### Best run logs:   
+
+[Best Training Logs](logs/imagenet/run10d.log)
+
+```commandline
+
+📈 Epoch 25 Summary:
+  - Train Loss: 1.5776
+  - Train Acc: 43.42%
+  - Val Loss: 1.9363
+  - Val Acc: 74.75%
+  - Current LR: 0.000001
+```
 
 ---
 
 
-## 1. Dry Run — Pipeline Check
+## 1. Dry Run — *Pipeline Check*
 
 **Instance:** `g4dn.xlarge`  
 **Specs:** 4 vCPU, 16 GB GPU  
@@ -168,7 +183,7 @@ This run and the previous run should have been combined into a single run of 50 
 
 ---
 
-## 7. Run6 to 10 - Finetuning trial runs
+## 7. Run6 to 10 - *Finetuning trial runs*
 **Instance:** `g5.2xlarge`  
 **Specs:** 8 vCPU, 32 GB RAM, 24 GB GPU  
 **Batch size:** 352/368/384
@@ -190,7 +205,7 @@ These runs were to try and reduce per-epoch runtime from 1 hour to ~35-40 mins. 
 - Lesser number of dataloader workers actually speeds up the process
 ---
 
-## 8. Run10 - Finetuning
+## 8. Run10 - *Finetuning*
 **Name:** Run10-finetune-lr-aug-adamw
 **Instance:** `g5.2xlarge`  
 **Specs:** 8 vCPU, 32 GB RAM, 24 GB GPU  
@@ -224,7 +239,7 @@ These runs were to try and reduce per-epoch runtime from 1 hour to ~35-40 mins. 
 <img src="logs/imagenet/run10-graphs.png" width="520">
 
 
-## 9. Run11 - More Finetuning
+## 9. Run11 - *More Finetuning*
 **Name:** Run11-more-finetune
 **Instance:** `g5.2xlarge`  
 **Specs:** 8 vCPU, 32 GB RAM, 24 GB GPU  
@@ -250,5 +265,8 @@ These runs were to try and reduce per-epoch runtime from 1 hour to ~35-40 mins. 
 - Log diagnostics right from the beginning
 - Use less dataloaders, CPU need not be maxed out
 - Pick batch size where GPU is fully utilized
-- Pick right instance and use the server's volume for dataset
-- 
+- Pick right instance and use the server's volume for dataset loading
+- Use mixed precision from the beginning
+- Change augmentations at different stages of training/finetuning
+- Cutmix/Mixup really speeds up learning during early stages of training
+- Finetuning runs need to be very targeted, or validation accuracy will just plateau at some point

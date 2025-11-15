@@ -201,15 +201,15 @@ source ~/.bashrc
 ### Step 3.3 - Environment setup
 
 - Add the Huggingface Dataset cache directory to .bashrc. No need to set HF_HOME  
-```
+    ```
    export HF_DATASETS_CACHE="/Imagenet/datasets_cache"
    #export HF_HOME=/Imagenet/hf_cache
    #unset HF_HOME
    source ~/.bashrc
-```
+    ```
 
 - Virtual environment is at:
-   source ~/my-venv/bin/activate 
+   `source ~/my-venv/bin/activate` 
 
  - Some python packages were installed after AMI image was created, so they got missed..
     ```commandline
@@ -218,13 +218,13 @@ source ~/.bashrc
     uv pip install psutil pynvml
     uv pip install pyjpeg-turbo
 
+    #Optional, for JPEG acceleration:  
+    sudo apt install libjpeg-turbo-progs
+
     uv pip uninstall pillow
     sudo apt update
     sudo apt install -y libjpeg-dev zlib1g-dev libpng-dev # needs zlib
     uv pip install --no-cache-dir pillow-simd
-
-#Optional, for JPEG acceleration
-sudo apt install libjpeg-turbo-progs
 
 ```  
 Verify that Pillow-Simd is in use:
@@ -247,19 +247,19 @@ uv pip list | grep pillow
 ### Step 3.4 - Start training
 
  - Start training inside screen/tmux session:
-```commandline
+    ```commandline
    screen -S train
    source my-venv/bin/activate
    huggingface-cli login
 
    python main.py | tee /Data/run0.log
-```
+    ```
 
 - Run tensorboard
-```commandline
+    ```commandline
 screen -S tf
 source my-venv/bin/activate
 tensorboard --logdir=/Data/tf_runs --host=0.0.0.0 --port=6006
-```
+    ```
 Open port 6006 from inbound rules
 
