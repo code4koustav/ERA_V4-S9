@@ -7,7 +7,8 @@ import torch.optim as optim
 import gc
 from data_loader import generate_train_val_loader, generate_hf_train_val_loader
 from model import ResNet50
-from train import train_loop, val_loop, get_sgd_optimizer, get_adam_optimizer, get_lr_scheduler, get_cosine_scheduler, load_checkpoint, save_checkpoint
+from train import train_loop, val_loop, get_sgd_optimizer, get_adam_optimizer, get_lr_scheduler, get_cosine_scheduler, \
+    load_checkpoint, save_checkpoint, maybe_switch_to_fine_tune_phase
 from utils import InspectImage
 from data_augmentation import get_cutmix_prob
 from monitor import get_system_stats, measure_dataloader_speed
@@ -63,7 +64,8 @@ def main(data_path="./content/tiny-imagenet-200",
          hf_dataset=True,
          experiment_name="MyTrainRun",
          resume_weights_file="best.pth",
-         finetuning_run=False
+         finetuning_run=False,
+         switch_epoch=20
          ):
     """
     Main function to run the complete training pipeline
@@ -75,6 +77,15 @@ def main(data_path="./content/tiny-imagenet-200",
         num_epochs: Number of epochs to train (1-2 for testing)
         learning_rate: Maximum learning rate for OneCycleLR
         inspect_data: Whether to show dataset inspection
+        checkpoints_dir: Main directory where checkpoins will be saved
+        use_amp: Flag to turn on mixed precision
+        hf_dataset: Selects huggingface specific dataloader if True
+        experiment_name: Name of the training run. Weights will be saved under this subdir, as will tensorboard logs
+        resume_training: To resume training or not. If true, optimizer/scheduler/scaler states will be loaded.
+                         If false but if resume_weights_file is present, only weights will be loaded
+        resume_weights_file: checkpoint weights file to load the model
+        finetuning_run: Flag for finetuning run - use different optimizer, LR strategy, augmentations
+        switch_epoch: For more granular control of finetuning run. Epoch at which we switch to even lesser augmentations and even lower lr start
     """
     print("="*70)
     print("🚀 ImageNet Training Pipeline - ResNet50 on Tiny ImageNet")
@@ -169,10 +180,15 @@ def main(data_path="./content/tiny-imagenet-200",
         # Learning Rate Strategy while finetuning: warmup + cosine annealing
         # For finetuning run, use learning_rate=0.01. Should see val accuracy jump earlier and rise past 70% within ~10 epochs.
         warmup_epochs = num_epochs // 10
-        scheduler, tmax_steps, warmup_steps, eta_min = get_cosine_scheduler(optimizer, learning_rate, num_epochs, steps_per_epoch, warmup_epochs)
+        start_factor = 0.01
+        if warmup_epochs == 0 or switch_epoch <= 5:
+            warmup_epochs = 2
+            start_factor = 0.1
+        scheduler, tmax_steps, warmup_steps, eta_min = get_cosine_scheduler(optimizer, learning_rate, num_epochs,
+                                                                            steps_per_epoch, warmup_epochs, start_factor)
         lr_scheduler_type = "CosineAnnealingLR",
         lr_scheduler_params = {"T_max": tmax_steps, "warmup_steps": warmup_steps, "eta_min": eta_min}
-        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs")
+        print(f"✓ LR Scheduler: CosineAnnealingLR with warmup of {warmup_epochs} epochs, start_factor={start_factor}, switch_epoch={switch_epoch}")
     else:
         # Learning Rate Strategy while training from scratch: OneCycleLR
         # OneCycleLR expects total_steps = num_epochs * steps_per_epoch. Since we are dividing loss by accumulation_steps, we are
@@ -233,6 +249,7 @@ def main(data_path="./content/tiny-imagenet-200",
 
     #If abs_diff is near 0 and rel_diff << 1e-3 → EMA is correctly initialized. If ema_requires_grad is True, set it to false for EMA params
     abs_diff, rel_diff = ema_sanity_checks(model, ema_model, ema_decay)
+    ema_model.eval()
 
 
     # Create a logger
@@ -248,17 +265,34 @@ def main(data_path="./content/tiny-imagenet-200",
         print("\n🔄 Training...")
         stats = get_system_stats()
         current_cutmix_prob = get_cutmix_prob(epoch, num_epochs, base_prob=cutmix_base_prob, mode=mode)
-        print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}")
+        current_mixup_prob = 0.5 # For main training run. Use helper function to bring down to 0..
+        label_smoothing = 0.1 # ToDo: if cutmix/mixup is enabled, set to 0 in training loop to avoid over regularization?
+
+        if finetuning_run:
+            # During final epochs of finetuning run, turn off augmentations except basic ones, and reduce LR even further
+            maybe_switch_to_fine_tune_phase(epoch, optimizer, train_loader, switch_epoch=switch_epoch, min_lr=2e-5, pbar=None)
+            label_smoothing = 0.05
+            current_cutmix_prob = 0
+            current_mixup_prob = 0.05
+
+            # Turn label smoothing very low for small finetuning run, or at the end of ft run. Making 0 caused overfitting in last 5 epochs
+            # if switch_epoch < 5 or epoch == switch_epoch:
+            if epoch > switch_epoch:
+                label_smoothing = 0.07
+                current_cutmix_prob = 0
+                current_mixup_prob = 0.0
+
+        print(f"Cutmix probability for epoch {epoch}={current_cutmix_prob}, label_smoothing={label_smoothing}")
         train_losses, train_acc = train_loop(model, device, train_loader, optimizer, scheduler, scaler, train_losses, train_acc,
                                              epoch, accumulation_steps=accumulation_steps, use_amp=use_amp,
                                              ema_model=ema_model, ema_decay=ema_decay, current_cutmix_prob=current_cutmix_prob,
-                                             logger=tlogger)
+                                             current_mixup_prob=current_mixup_prob, logger=tlogger, label_smoothing=label_smoothing)
         
         # Validation
         print("\n🔍 Validating...")
         val_losses, val_acc = val_loop(
-            # ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp
-            model, device, val_loader, val_losses, val_acc, use_amp=use_amp
+            ema_model, device, val_loader, val_losses, val_acc, use_amp=use_amp, label_smoothing=label_smoothing
+            # model, device, val_loader, val_losses, val_acc, use_amp=use_amp, label_smoothing=label_smoothing
         )
         
         # Print epoch summary
@@ -287,9 +321,9 @@ def main(data_path="./content/tiny-imagenet-200",
         torch.save(ema_model.state_dict(), f"epoch-{epoch}-ema.pth")
 
         # Aggregate epoch metrics
-        train_loss_epoch = sum(train_losses[-len(train_loader):]) / len(train_loader)
+        train_loss_epoch = train_losses[-1]
         train_acc_epoch = train_acc[-1]
-        val_loss_epoch = sum(val_losses[-len(val_loader):]) / len(val_loader)
+        val_loss_epoch = val_losses[-1]
         val_acc_epoch = val_acc[-1]
 
         # Check for EMA drift
@@ -427,20 +461,41 @@ if __name__ == "__main__":
     # )
 
 
+    # # For g5.2xlarge. Finetuning run with previous best weights
+    # model, *metrics = main(
+    #     data_path="",
+    #     zip_path="",
+    #     batch_size=368, #368,#384 # Increase if you have enough GPU memory
+    #     num_epochs=25,
+    #     learning_rate=0.001,
+    #     inspect_data=False,  # Set True to see dataset stats
+    #     checkpoints_dir="/Data/checkpoints",
+    #     num_workers=12,
+    #     use_amp=True,
+    #     hf_dataset=True,
+    #     experiment_name="Run10-finetune-lr-aug-adamw",
+    #     # resume_training=False,
+    #     # resume_weights_file="run5-epoch89.pth",
+    #     resume_training=True,
+    #     resume_weights_file="best.pth",
+    #     finetuning_run=True
+    # )
+
     # For g5.2xlarge. Finetuning run with previous best weights
     model, *metrics = main(
         data_path="",
         zip_path="",
         batch_size=368, #368,#384 # Increase if you have enough GPU memory
-        num_epochs=25,
-        learning_rate=0.001,
+        num_epochs=5,
+        learning_rate=2e-4,
         inspect_data=False,  # Set True to see dataset stats
         checkpoints_dir="/Data/checkpoints",
         num_workers=12,
         use_amp=True,
         hf_dataset=True,
-        experiment_name="Run10-finetune-lr-aug-adamw",
-        resume_training=False,
-        resume_weights_file="run5-epoch89.pth",
-        finetuning_run=True
+        experiment_name="Run13-more-finetune",
+        resume_training=False, # Don't load optimizer/schduler states, only model weights
+        resume_weights_file="run12-best.pth",
+        finetuning_run=True,
+        switch_epoch=3
     )

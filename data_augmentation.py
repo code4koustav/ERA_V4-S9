@@ -109,6 +109,18 @@ def get_train_transform(mode="full_train"):
         ])
 
 
+def get_late_stage_transforms():
+    """Light augmentations for late-stage fine-tuning."""
+    return A.Compose([
+        A.Resize(256, 256),
+        A.CenterCrop(224, 224),
+        A.HorizontalFlip(p=0.5),
+        A.Normalize(mean=(0.485, 0.456, 0.406),
+                    std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
+
 def get_val_transform():
     return A.Compose([
         # Resize smaller edge to 256 and preserve aspect ratio
@@ -162,30 +174,43 @@ def get_cutmix_prob(epoch, total_epochs, base_prob=0.5, mode="full_train"):
     return cutmix_prob
 
 
-def mixup_cutmix_data(x, y, alpha=0.2, cutmix_prob=0.5, use_cutmix=True, use_mixup=True):
-    """Apply MixUp or CutMix to a batch (AMP-safe, with edge-case guards)."""
+def mixup_cutmix_data(x, y, alpha=0.2, mixup_prob=0.05, cutmix_prob=0.0, use_cutmix=False, use_mixup=True):
+    """
+    Applies MixUp or CutMix (mutually exclusive). If both probs are 0 -> returns (x, y, y, 1.0).
+    Option D: we will call with cutmix_prob=0.0 and use_mixup=True so only MixUp is used.
+
+    Returns: x, y_a, y_b, lam
+    """
     if not use_cutmix and not use_mixup:
         return x, y, y, 1.0
+
+    # decide per-batch whether to apply mixup or cutmix
+    apply_mixup = (use_mixup and (np.random.rand() < mixup_prob))
+    apply_cutmix = (use_cutmix and (np.random.rand() < cutmix_prob))
 
     lam = 1.0
     rand_index = torch.randperm(x.size(0), device=x.device)
 
-    if use_cutmix and np.random.rand() < cutmix_prob:
-        # --- CutMix ---
+    if apply_cutmix:
+        # CutMix
         lam = np.random.beta(alpha, alpha)
         lam = np.clip(lam, 0.01, 0.99)
         bbx1, bby1, bbx2, bby2 = rand_bbox(x.size(), lam)
         x[:, :, bby1:bby2, bbx1:bbx2] = x[rand_index, :, bby1:bby2, bbx1:bbx2]
         lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (x.size(-1) * x.size(-2)))
-    elif use_mixup:
-        # --- MixUp ---
+        y_a, y_b = y, y[rand_index]
+        return x, y_a, y_b, float(lam)
+
+    if apply_mixup:
+        # MixUp
         lam = np.random.beta(alpha, alpha)
         lam = np.clip(lam, 0.01, 0.99)
         x = lam * x + (1 - lam) * x[rand_index, :]
+        y_a, y_b = y, y[rand_index]
+        return x, y_a, y_b, float(lam)
 
-    lam = float(lam)
-    y_a, y_b = y, y[rand_index]
-    return x, y_a, y_b, lam
+    # no mix
+    return x, y, y, lam
 
 
 def rand_bbox(size, lam):
